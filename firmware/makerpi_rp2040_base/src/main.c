@@ -213,7 +213,7 @@ static void handle_command(const navbot_command_t *command, uint32_t stamp_ms) {
 }
 
 static void control_step(float dt, uint32_t stamp_ms) {
-    poll_encoders();
+    /* Encoder drain happens in the main loop and inside wheel_tick(). */
 
     if (safety_is_faulted()) {
         stop_all();

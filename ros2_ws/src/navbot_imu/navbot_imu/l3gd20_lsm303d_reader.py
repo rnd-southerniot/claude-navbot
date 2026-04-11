@@ -106,6 +106,7 @@ class L3gd20Lsm303dReader:
         self._bus: Optional[SMBus] = None
         self._configured = False
         self._variant = "unknown"
+        self._cached_probe: Optional[ImuProbeStatus] = None
 
     def connect(self) -> None:
         if SMBus is None:
@@ -118,6 +119,7 @@ class L3gd20Lsm303dReader:
             self._bus.close()
             self._bus = None
         self._configured = False
+        self._cached_probe = None
 
     def _read_u8(self, address: int, register: int) -> int:
         assert self._bus is not None
@@ -241,14 +243,14 @@ class L3gd20Lsm303dReader:
             self._write_u8(self.mag_address, LSM303DLHC_MAG_REG_CRB, 0x20)
             self._write_u8(self.mag_address, LSM303DLHC_MAG_REG_MR, 0x00)
         self._variant = probe.variant
+        self._cached_probe = probe
         self._configured = True
 
     def read_sample(self) -> tuple[ImuProbeStatus, tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]:
         self.connect()
         self._configure()
-        probe = self.probe()
-        if not probe.available:
-            raise RuntimeError(probe.message)
+        assert self._cached_probe is not None
+        probe = self._cached_probe
 
         gx, gy, gz = self._read_vector3(self.gyro_address, L3GD20_REG_OUT_X_L)
         if probe.variant == "lsm303d":

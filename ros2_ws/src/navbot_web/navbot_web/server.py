@@ -269,7 +269,7 @@ class WebConsoleNode(Node):
     def __init__(self) -> None:
         super().__init__("navbot_web_console")
 
-        self.declare_parameter("host", "0.0.0.0")
+        self.declare_parameter("host", "127.0.0.1")
         self.declare_parameter("port", 8080)
         self.declare_parameter("capture_root", str(Path.home() / "navbot_captures"))
         self.declare_parameter("cmd_vel_topic", "/cmd_vel")
@@ -310,6 +310,9 @@ class WebConsoleNode(Node):
         self.capture_topics = [str(topic) for topic in self.get_parameter("capture_topics").value]
         self.command_hold_timeout = float(self.get_parameter("command_hold_timeout").value)
         self.topic_stale_timeout = float(self.get_parameter("topic_stale_timeout").value)
+
+        self._api_token = self._load_api_token()
+        self._require_token = self.host != "127.0.0.1" and self._api_token is not None
 
         self._state_lock = threading.Lock()
         self._odom = OdomState()
@@ -436,6 +439,18 @@ class WebConsoleNode(Node):
     def shutdown(self) -> None:
         self.stop_motion()
         self.capture_manager.shutdown()
+
+    @staticmethod
+    def _load_api_token() -> str | None:
+        token = os.environ.get("NAVBOT_WEB_TOKEN")
+        if token:
+            return token.strip()
+        token_path = Path.home() / ".navbot_web_token"
+        if token_path.exists():
+            content = token_path.read_text(encoding="utf-8").strip()
+            if content:
+                return content
+        return None
 
     def _publish_twist(self, linear: float, angular: float) -> None:
         msg = Twist()
@@ -626,6 +641,9 @@ class RequestHandler(BaseHTTPRequestHandler):
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "not found"})
 
     def do_POST(self) -> None:  # noqa: N802
+        if not self._check_token():
+            return
+
         parsed = urlparse(self.path)
         body = self._read_json()
 
@@ -658,6 +676,16 @@ class RequestHandler(BaseHTTPRequestHandler):
             return
 
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "not found"})
+
+    def _check_token(self) -> bool:
+        node = self.server.context.node
+        if not node._require_token:
+            return True
+        auth = self.headers.get("Authorization", "")
+        if auth.startswith("Bearer ") and auth[7:].strip() == node._api_token:
+            return True
+        self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "missing or invalid bearer token"})
+        return False
 
     def log_message(self, format: str, *args: Any) -> None:
         return
@@ -725,6 +753,16 @@ def main(args: list[str] | None = None) -> None:
     context = WebAppContext(node)
     server = RobotWebServer((node.host, node.port), context)
     node.get_logger().info(f"ground-test web console on http://{node.host}:{node.port}")
+    if node.host != "127.0.0.1":
+        if node._require_token:
+            node.get_logger().warn(
+                "web console is LAN-accessible — POST endpoints require Bearer token"
+            )
+        else:
+            node.get_logger().warn(
+                "WARNING: web console is LAN-accessible WITHOUT authentication. "
+                "Set NAVBOT_WEB_TOKEN or create ~/.navbot_web_token to enable token auth."
+            )
 
     try:
         server.serve_forever()

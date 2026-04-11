@@ -21,7 +21,8 @@ navbot_l3gd20_lsm303d_reader:
     mag_scale_x: 1.088124410934
     mag_scale_y: 0.925080128205
     mag_scale_z: 1.0
-    magnetic_declination_rad: 0.0
+    # Dhaka, Bangladesh — update for other deployment sites via NOAA WMM.
+    magnetic_declination_rad: -0.016
     yaw_offset_rad: 0.0
     yaw_sign: -1.0
     ypr_filter_alpha: 0.35
