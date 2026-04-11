@@ -30,3 +30,6 @@ ros2_ws/log/
 # Captures (runtime output, not source)
 captures/*
 !captures/.gitkeep
+
+# Firmware archive (binary artifacts with checksums)
+firmware_archive/
