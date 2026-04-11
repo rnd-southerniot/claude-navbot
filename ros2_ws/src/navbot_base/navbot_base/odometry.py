@@ -99,7 +99,7 @@ class DifferentialDriveOdometry:
         right_delta = right_count - self._last_right_count
         dt = stamp_sec - self._last_stamp_sec
 
-        # TODO: add explicit encoder rollover handling once the MCU count width is fixed.
+        # MCU uses int64 encoder counts — rollover is effectively eliminated.
         left_distance = left_delta * ((2.0 * math.pi * self.wheel_radius) / float(self.left_counts_per_revolution))
         right_distance = right_delta * (
             (2.0 * math.pi * self.wheel_radius) / float(self.right_counts_per_revolution)

@@ -204,8 +204,8 @@ void wheel_stop(wheel_t *w) {
 bool wheel_tick(wheel_t *w, float dt) {
     wheel_encoder_update(w);
 
-    int32_t count = w->enc_count;
-    int32_t delta = count - w->prev_count;
+    int64_t count = w->enc_count;
+    int64_t delta = count - w->prev_count;
     float raw_cps = 0.0f;
 
     if (dt > 0.0f) {
@@ -221,7 +221,7 @@ bool wheel_tick(wheel_t *w, float dt) {
     }
 
     int16_t abs_duty = (w->duty < 0) ? -w->duty : w->duty;
-    int32_t abs_delta = (delta < 0) ? -delta : delta;
+    int64_t abs_delta = (delta < 0) ? -delta : delta;
     uint32_t tick_ms = CONTROL_LOOP_PERIOD_US / 1000;
 
     if (w->stall_inhibit_ms > 0) {

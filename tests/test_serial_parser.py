@@ -9,13 +9,25 @@ has a bug (or this oracle diverged from the spec).
 """
 
 import math
+import sys
+from pathlib import Path
 
 import pytest
+
+_BASE_SRC = Path(__file__).resolve().parent.parent / "ros2_ws" / "src" / "navbot_base"
+if str(_BASE_SRC) not in sys.path:
+    sys.path.insert(0, str(_BASE_SRC))
+
+from navbot_base.checksum import (
+    append_checksum,
+    compute_checksum,
+    validate_and_strip_checksum,
+)
 
 
 # --- Python oracle for firmware parser ---
 
-NAVBOT_PROTOCOL_MAX_LINE = 96
+NAVBOT_PROTOCOL_MAX_LINE = 128
 
 
 class ParseResult:
@@ -23,6 +35,7 @@ class ParseResult:
     EMPTY = "EMPTY"
     UNKNOWN_COMMAND = "UNKNOWN_COMMAND"
     BAD_ARGUMENTS = "BAD_ARGUMENTS"
+    BAD_CHECKSUM = "BAD_CHECKSUM"
 
 
 class Command:
@@ -37,7 +50,12 @@ def parse_command_line(line: str) -> tuple[str, Command | None]:
     if line is None:
         return ParseResult.BAD_ARGUMENTS, None
 
-    trimmed = line.strip().upper()
+    # Strip and validate checksum before any other processing.
+    payload, checksum_valid = validate_and_strip_checksum(line)
+    if not checksum_valid:
+        return ParseResult.BAD_CHECKSUM, None
+
+    trimmed = payload.strip().upper()
     if not trimmed:
         return ParseResult.EMPTY, None
 
@@ -169,3 +187,40 @@ class TestEdgeCases:
         result, cmd = parse_command_line("  CMD_VEL 0.10 0.20  ")
         assert result == ParseResult.OK
         assert cmd.type == "CMD_VEL"
+
+
+class TestChecksumIntegration:
+    def test_valid_checksum_accepted(self):
+        line = append_checksum("PING")
+        result, cmd = parse_command_line(line)
+        assert result == ParseResult.OK
+        assert cmd.type == "PING"
+
+    def test_wrong_checksum_rejected(self):
+        result, _ = parse_command_line("PING*00")
+        # PING XOR is not 00, so this should fail
+        ping_csum = compute_checksum("PING")
+        if ping_csum != "00":
+            assert result == ParseResult.BAD_CHECKSUM
+
+    def test_cmd_vel_with_checksum(self):
+        line = append_checksum("CMD_VEL 0.15 0.80")
+        result, cmd = parse_command_line(line)
+        assert result == ParseResult.OK
+        assert cmd.type == "CMD_VEL"
+        assert abs(cmd.value_1 - 0.15) < 1e-6
+        assert abs(cmd.value_2 - 0.80) < 1e-6
+
+    def test_no_checksum_still_accepted(self):
+        result, cmd = parse_command_line("STOP")
+        assert result == ParseResult.OK
+        assert cmd.type == "STOP"
+
+    def test_truncated_checksum_rejected(self):
+        result, _ = parse_command_line("PING*A")
+        assert result == ParseResult.BAD_CHECKSUM
+
+    def test_corrupt_payload_detected(self):
+        csum = compute_checksum("PING")
+        result, _ = parse_command_line(f"PONG*{csum}")
+        assert result == ParseResult.BAD_CHECKSUM

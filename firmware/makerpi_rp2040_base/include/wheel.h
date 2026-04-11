@@ -21,8 +21,8 @@ typedef struct wheel {
     uint pin_rev;
     bool swap_dir;
 
-    volatile int32_t enc_count;
-    int32_t prev_count;
+    volatile int64_t enc_count;
+    int64_t prev_count;
     int32_t counts_per_rev;
     float wheel_radius_m;
 

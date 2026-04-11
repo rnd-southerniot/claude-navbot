@@ -8,6 +8,7 @@ typedef enum navbot_parse_result {
     NAVBOT_PARSE_EMPTY,
     NAVBOT_PARSE_UNKNOWN_COMMAND,
     NAVBOT_PARSE_BAD_ARGUMENTS,
+    NAVBOT_PARSE_BAD_CHECKSUM,
 } navbot_parse_result_t;
 
 navbot_parse_result_t navbot_parse_command_line(const char *line, navbot_command_t *out_command);

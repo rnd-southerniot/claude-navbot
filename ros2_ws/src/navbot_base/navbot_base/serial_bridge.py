@@ -10,6 +10,7 @@ from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool, String
 from tf2_ros import TransformBroadcaster
 
+from .checksum import append_checksum, validate_and_strip_checksum
 from .odometry import DifferentialDriveOdometry
 
 try:
@@ -67,6 +68,8 @@ class SerialBridgeNode(Node):
         self._latest_twist = Twist()
         self._latest_twist_time: Optional[float] = None
         self._stop_sent = False
+        self._firmware_version: Optional[str] = None
+        self._checksum_failures = 0
 
         self._odometry = DifferentialDriveOdometry(
             wheel_radius=self.wheel_radius,
@@ -109,8 +112,39 @@ class SerialBridgeNode(Node):
             return
 
         try:
-            self._serial = serial.Serial(self.serial_port, self.baud_rate, timeout=0.0)
-            self.get_logger().info(f"connected to {self.serial_port} @ {self.baud_rate}")
+            port = serial.Serial(self.serial_port, self.baud_rate, timeout=0.5)
+            port.reset_input_buffer()
+
+            # Reconnect handshake: STOP to ensure known state, PING to verify.
+            port.write(append_checksum("STOP").encode("utf-8") + b"\n")
+            port.write(append_checksum("PING").encode("utf-8") + b"\n")
+
+            # Wait for ACK PING (with firmware version).
+            handshake_ok = False
+            deadline = time.monotonic() + 1.5
+            while time.monotonic() < deadline:
+                raw = port.readline()
+                if not raw:
+                    continue
+                line = raw.decode("utf-8", errors="ignore").strip()
+                payload, _ = validate_and_strip_checksum(line)
+                if payload.startswith("ACK PING"):
+                    handshake_ok = True
+                    tokens = payload.split()
+                    if len(tokens) >= 3:
+                        self._firmware_version = tokens[2]
+                    break
+
+            if not handshake_ok:
+                self.get_logger().warn("handshake failed: no ACK PING received, retrying")
+                port.close()
+                return
+
+            # Switch to non-blocking for normal operation.
+            port.timeout = 0.0
+            self._serial = port
+            version_str = f" (firmware {self._firmware_version})" if self._firmware_version else ""
+            self.get_logger().info(f"connected to {self.serial_port} @ {self.baud_rate}{version_str}")
             self._stop_sent = False
         except SERIAL_ERRORS as exc:
             if now - self._last_connect_log > 5.0:
@@ -132,7 +166,7 @@ class SerialBridgeNode(Node):
             return
 
         try:
-            self._serial.write((line.strip() + "\n").encode("utf-8"))
+            self._serial.write((append_checksum(line) + "\n").encode("utf-8"))
         except SERIAL_ERRORS as exc:
             self.get_logger().error(f"serial write failed: {exc}")
             self._close_serial()
@@ -194,8 +228,18 @@ class SerialBridgeNode(Node):
                 return
 
             line = raw_line.decode("utf-8", errors="ignore").strip()
-            if line:
-                self._handle_line(line)
+            if not line:
+                continue
+
+            payload, checksum_valid = validate_and_strip_checksum(line)
+            if not checksum_valid:
+                self._checksum_failures += 1
+                self.get_logger().warn(
+                    f"checksum mismatch on received line (total failures: {self._checksum_failures}): {line}"
+                )
+                continue
+
+            self._handle_line(payload)
 
     def _handle_line(self, line: str) -> None:
         tokens = line.split()
@@ -204,8 +248,10 @@ class SerialBridgeNode(Node):
 
         record_type = tokens[0]
         if record_type == "ACK":
-            ack_command = " ".join(tokens[1:]) if len(tokens) > 1 else "UNKNOWN"
-            self._publish_controller_state(f"ACK {ack_command}")
+            ack_command = tokens[1] if len(tokens) > 1 else "UNKNOWN"
+            if ack_command == "PING" and len(tokens) >= 3:
+                self._firmware_version = tokens[2]
+            self._publish_controller_state(f"ACK {' '.join(tokens[1:])}")
         elif record_type == "ERR":
             if len(tokens) < 3:
                 self.get_logger().warn(f"malformed ERR line: {line}")

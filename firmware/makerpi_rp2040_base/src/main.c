@@ -143,7 +143,7 @@ static void handle_motion_timeout(uint32_t stamp_ms) {
 static void handle_command(const navbot_command_t *command, uint32_t stamp_ms) {
     switch (command->type) {
         case NAVBOT_CMD_PING:
-            navbot_telemetry_ack(command->type);
+            navbot_telemetry_ack_ping();
             break;
 
         case NAVBOT_CMD_STOP:

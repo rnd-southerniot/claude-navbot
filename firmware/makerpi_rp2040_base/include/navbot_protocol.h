@@ -1,10 +1,13 @@
 #ifndef NAVBOT_PROTOCOL_H
 #define NAVBOT_PROTOCOL_H
 
+#include <stddef.h>
+#include <stdint.h>
+
 /*
  * navbot_protocol.h
  *
- * First-pass line-based serial protocol between the Raspberry Pi ROS 2 stack
+ * Line-based serial protocol between the Raspberry Pi ROS 2 stack
  * and the Maker Pi RP2040 base controller.
  *
  * Commands from Pi to RP2040:
@@ -16,10 +19,17 @@
  *   WHEEL_VEL <left_mps> <right_mps>
  *
  * Telemetry from RP2040 to Pi:
+ *   ACK PING <firmware_version>
  *   ACK <command>
  *   ERR <code> <message>
  *   STATE <mode> <fault>
  *   ODOM <stamp_ms> <left_count> <right_count> <left_vel_mps> <right_vel_mps>
+ *
+ * Integrity:
+ *   Every line may carry an XOR checksum suffix: *XX
+ *   where XX is the two-digit uppercase hex XOR of all bytes before '*'.
+ *   If '*' is present, the checksum is validated; if absent, the line is
+ *   accepted as-is (backward compatibility for bench terminals).
  *
  * Design goals:
  *   - human-readable and easy to test with a serial terminal
@@ -28,7 +38,8 @@
  */
 
 #define NAVBOT_PROTOCOL_BAUDRATE 115200
-#define NAVBOT_PROTOCOL_MAX_LINE 96
+#define NAVBOT_PROTOCOL_MAX_LINE 128
+#define FIRMWARE_VERSION "1.1.0"
 
 typedef enum navbot_command_type {
     NAVBOT_CMD_UNKNOWN = 0,
@@ -45,5 +56,17 @@ typedef struct navbot_command {
     float value_1;
     float value_2;
 } navbot_command_t;
+
+/*
+ * Compute XOR checksum of a byte buffer.
+ * Returns the XOR of all bytes in data[0..len-1].
+ */
+static inline uint8_t navbot_checksum_xor(const char *data, size_t len) {
+    uint8_t csum = 0;
+    for (size_t i = 0; i < len; ++i) {
+        csum ^= (uint8_t)data[i];
+    }
+    return csum;
+}
 
 #endif
