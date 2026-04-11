@@ -1,0 +1,27 @@
+navbot_l3gd20_lsm303d_reader:
+  ros__parameters:
+    i2c_bus: 1
+    gyro_address: 105
+    accel_address: 25
+    mag_address: 30
+    poll_hz: 20.0
+    frame_id: imu_link
+    gyro_rad_per_sec_per_lsb: 0.00015271630954950383
+    accel_mps2_per_lsb: 0.00059820565
+    mag_tesla_per_lsb_xy: 9.090909090909091e-08
+    mag_tesla_per_lsb_z: 1.0204081632653061e-07
+    angular_velocity_variance: 0.0004
+    linear_acceleration_variance: 0.04
+    magnetic_field_variance: 1.0e-10
+    # Planar compass calibration captured on 2026-04-11.
+    # X/Y are calibrated for ground-robot heading; Z remains uncalibrated until a 3D tilt capture.
+    mag_offset_x_t: -1.604545454545e-05
+    mag_offset_y_t: -1.69090909091e-05
+    mag_offset_z_t: 0.0
+    mag_scale_x: 1.088124410934
+    mag_scale_y: 0.925080128205
+    mag_scale_z: 1.0
+    magnetic_declination_rad: 0.0
+    yaw_offset_rad: 0.0
+    yaw_sign: -1.0
+    ypr_filter_alpha: 0.35

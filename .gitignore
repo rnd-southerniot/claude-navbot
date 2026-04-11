@@ -1,0 +1,32 @@
+# Build artifacts — RP2040 firmware
+build/
+*.uf2
+*.elf
+*.bin
+*.hex
+*.map
+*.dis
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# ROS 2 workspace build output
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+
+# macOS
+.DS_Store
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Captures (runtime output, not source)
+captures/*
+!captures/.gitkeep
