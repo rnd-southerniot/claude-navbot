@@ -38,7 +38,7 @@
  */
 
 #define NAVBOT_PROTOCOL_BAUDRATE 115200
-#define NAVBOT_PROTOCOL_MAX_LINE 128
+#define NAVBOT_PROTOCOL_MAX_LINE 192
 #define FIRMWARE_VERSION "1.2.0"
 
 typedef enum navbot_command_type {

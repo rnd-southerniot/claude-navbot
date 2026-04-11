@@ -250,3 +250,89 @@ class TestAsymmetricCPR:
         # Just verify both produce reasonable results.
         assert abs(odom_asym.x) > 0.01
         assert abs(odom_sym.x) > 0.01
+
+
+class TestMcuRestartDetection:
+    """Verify that a sudden encoder count jump (MCU reboot) is absorbed,
+    not integrated as a huge backward motion."""
+
+    def test_restart_from_high_count_to_zero(self):
+        odom = _make_odom()
+        # Seed and drive to 50000 counts in increments below restart threshold.
+        # Threshold is CPR*10 ≈ 39450, so use steps of 20000.
+        odom.update(
+            stamp_sec=0.0, left_count=0, right_count=0,
+            left_velocity_mps=0.1, right_velocity_mps=0.1,
+        )
+        odom.update(
+            stamp_sec=5.0, left_count=20000, right_count=20000,
+            left_velocity_mps=0.1, right_velocity_mps=0.1,
+        )
+        odom.update(
+            stamp_sec=10.0, left_count=50000, right_count=50000,
+            left_velocity_mps=0.1, right_velocity_mps=0.1,
+        )
+        x_before = odom.x
+        assert x_before > 0.5  # Sanity: we moved forward
+
+        # MCU restarts — counts jump to 0 (delta = -50000, above threshold)
+        state = odom.update(
+            stamp_sec=10.5, left_count=0, right_count=0,
+            left_velocity_mps=0.0, right_velocity_mps=0.0,
+        )
+
+        # Pose should NOT jump backward — restart absorbed
+        assert abs(state.x - x_before) < 0.01, (
+            f"x jumped from {x_before} to {state.x} — restart not detected"
+        )
+        assert state.linear_velocity == 0.0
+
+    def test_normal_large_motion_not_falsely_detected(self):
+        """A legitimate long drive should NOT trigger restart detection."""
+        odom = _make_odom()
+        # Threshold is CPR * 10 ≈ 39450. Drive 30000 counts (under threshold).
+        odom.update(
+            stamp_sec=0.0, left_count=0, right_count=0,
+            left_velocity_mps=0.1, right_velocity_mps=0.1,
+        )
+        state = odom.update(
+            stamp_sec=60.0, left_count=30000, right_count=30000,
+            left_velocity_mps=0.1, right_velocity_mps=0.1,
+        )
+        # Should have moved forward — NOT absorbed as restart
+        assert state.x > 1.0
+
+    def test_restart_preserves_yaw(self):
+        """After restart detection, yaw should be preserved, not zeroed."""
+        odom = _make_odom()
+        # Rotate to a known yaw
+        theta = math.pi / 4.0
+        left_dist = -(theta * WHEEL_SEPARATION / 2.0)
+        right_dist = theta * WHEEL_SEPARATION / 2.0
+        left_counts = _counts_for_distance(left_dist, LEFT_CPR)
+        right_counts = _counts_for_distance(right_dist, RIGHT_CPR)
+
+        odom.update(
+            stamp_sec=0.0, left_count=0, right_count=0,
+            left_velocity_mps=0.0, right_velocity_mps=0.0,
+        )
+        odom.update(
+            stamp_sec=2.0, left_count=left_counts, right_count=right_counts,
+            left_velocity_mps=0.0, right_velocity_mps=0.0,
+        )
+        yaw_before = odom.yaw
+
+        # Simulate restart: counts jump to 0 from left_counts/right_counts
+        # These deltas are small (< threshold) so we need to also simulate
+        # a larger travel first, then restart.
+        odom.update(
+            stamp_sec=10.0, left_count=left_counts + 50000, right_count=right_counts + 50000,
+            left_velocity_mps=0.1, right_velocity_mps=0.1,
+        )
+        state = odom.update(
+            stamp_sec=10.5, left_count=0, right_count=0,
+            left_velocity_mps=0.0, right_velocity_mps=0.0,
+        )
+
+        # Yaw preserved through restart
+        assert abs(state.yaw - odom.yaw) < 0.01

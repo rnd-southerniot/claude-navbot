@@ -99,6 +99,26 @@ class DifferentialDriveOdometry:
         right_delta = right_count - self._last_right_count
         dt = stamp_sec - self._last_stamp_sec
 
+        # Detect MCU restart: a backward jump larger than 10 full wheel revolutions
+        # indicates the encoder counter reset to zero, not actual motion.
+        restart_threshold = max(self.left_counts_per_revolution, self.right_counts_per_revolution) * 10
+        if abs(left_delta) > restart_threshold or abs(right_delta) > restart_threshold:
+            self._last_left_count = left_count
+            self._last_right_count = right_count
+            self._last_stamp_sec = stamp_sec
+            return OdometryState(
+                stamp_sec=stamp_sec,
+                x=self.x,
+                y=self.y,
+                yaw=self.yaw,
+                linear_velocity=0.0,
+                angular_velocity=0.0,
+                left_joint_position=self.left_joint_position,
+                right_joint_position=self.right_joint_position,
+                left_wheel_velocity=0.0,
+                right_wheel_velocity=0.0,
+            )
+
         # MCU uses int64 encoder counts — rollover is effectively eliminated.
         left_distance = left_delta * ((2.0 * math.pi * self.wheel_radius) / float(self.left_counts_per_revolution))
         right_distance = right_delta * (

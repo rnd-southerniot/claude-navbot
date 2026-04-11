@@ -243,7 +243,7 @@ int main(void) {
     setvbuf(stdout, NULL, _IONBF, 0);
 
     safety_init();
-    watchdog_enable(200, false);
+    watchdog_enable(200, true);
 
     uint sm_left = pio_claim_unused_sm(pio1, true);
     uint sm_right = pio_claim_unused_sm(pio1, true);
