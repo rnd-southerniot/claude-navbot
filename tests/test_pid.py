@@ -28,6 +28,9 @@ class PidController:
         self.integral = 0.0
         self.prev_error = 0.0
         self.output = 0.0
+        self.last_p_term = 0.0
+        self.last_i_term = 0.0
+        self.last_d_term = 0.0
 
     def update(self, setpoint: float, measurement: float, dt: float) -> float:
         error = setpoint - measurement
@@ -39,12 +42,17 @@ class PidController:
         if self.integral < -self.integral_max:
             self.integral = -self.integral_max
 
+        i_term = self.ki * self.integral
+
         d_term = 0.0
         if dt > 0.0:
             d_term = self.kd * (error - self.prev_error) / dt
 
         self.prev_error = error
-        self.output = p_term + (self.ki * self.integral) + d_term
+        self.last_p_term = p_term
+        self.last_i_term = i_term
+        self.last_d_term = d_term
+        self.output = p_term + i_term + d_term
 
         if self.output > self.out_max:
             self.output = self.out_max
@@ -57,6 +65,9 @@ class PidController:
         self.integral = 0.0
         self.prev_error = 0.0
         self.output = 0.0
+        self.last_p_term = 0.0
+        self.last_i_term = 0.0
+        self.last_d_term = 0.0
 
 
 # Firmware defaults from config.h
@@ -194,3 +205,32 @@ class TestReset:
         out1 = pid1.update(setpoint=100.0, measurement=0.0, dt=0.01)
         out2 = pid2.update(setpoint=100.0, measurement=0.0, dt=0.01)
         assert abs(out1 - out2) < 1e-6
+
+
+class TestDiagnosticFields:
+    def test_p_term_tracked(self):
+        pid = _make_pid(ki=0.0, kd=0.0)
+        pid.update(setpoint=100.0, measurement=0.0, dt=0.01)
+        assert abs(pid.last_p_term - (KP * 100.0)) < 1e-6
+
+    def test_i_term_tracked(self):
+        pid = _make_pid(kp=0.0, kd=0.0)
+        pid.update(setpoint=10.0, measurement=0.0, dt=0.1)
+        # integral = 10.0 * 0.1 = 1.0, i_term = KI * 1.0
+        assert abs(pid.last_i_term - (KI * 1.0)) < 1e-6
+
+    def test_d_term_tracked(self):
+        pid = _make_pid(kp=0.0, ki=0.0, kd=1.0)
+        pid.update(setpoint=0.0, measurement=0.0, dt=0.01)
+        pid.update(setpoint=50.0, measurement=0.0, dt=0.01)
+        # d_term = 1.0 * (50 - 0) / 0.01 = 5000, clamped to OUT_MAX
+        assert pid.last_d_term > 0.0
+
+    def test_reset_clears_diagnostic_fields(self):
+        pid = _make_pid()
+        pid.update(setpoint=100.0, measurement=0.0, dt=0.01)
+        assert pid.last_p_term != 0.0
+        pid.reset()
+        assert pid.last_p_term == 0.0
+        assert pid.last_i_term == 0.0
+        assert pid.last_d_term == 0.0

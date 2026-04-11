@@ -11,6 +11,9 @@ typedef struct {
     float integral;
     float prev_error;
     float output;
+    float last_p_term;
+    float last_i_term;
+    float last_d_term;
 } pid_ctrl_t;
 
 void pid_init(pid_ctrl_t *p, float kp, float ki, float kd, float out_min, float out_max, float integral_max);

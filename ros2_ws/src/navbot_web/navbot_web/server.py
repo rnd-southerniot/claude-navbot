@@ -298,6 +298,7 @@ class WebConsoleNode(Node):
                 "/imu/l3gd20_lsm303d/raw",
                 "/imu/l3gd20_lsm303d/mag",
                 "/imu/l3gd20_lsm303d/ypr",
+                "/heading_controller/status",
             ],
         )
         self.declare_parameter("command_hold_timeout", 0.35)

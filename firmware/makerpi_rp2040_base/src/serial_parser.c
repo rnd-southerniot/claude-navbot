@@ -70,6 +70,7 @@ const char *navbot_command_name(navbot_command_type_t type) {
         case NAVBOT_CMD_ESTOP:     return "ESTOP";
         case NAVBOT_CMD_CMD_VEL:   return "CMD_VEL";
         case NAVBOT_CMD_WHEEL_VEL: return "WHEEL_VEL";
+        case NAVBOT_CMD_DIAG:      return "DIAG";
         default:                   return "UNKNOWN";
     }
 }
@@ -131,6 +132,10 @@ navbot_parse_result_t navbot_parse_command_line(const char *line, navbot_command
     }
     if (strcmp(parsed, "ESTOP") == 0) {
         out_command->type = NAVBOT_CMD_ESTOP;
+        return NAVBOT_PARSE_OK;
+    }
+    if (strcmp(parsed, "DIAG") == 0) {
+        out_command->type = NAVBOT_CMD_DIAG;
         return NAVBOT_PARSE_OK;
     }
     if (sscanf(parsed, "CMD_VEL %f %f %c", &out_command->value_1, &out_command->value_2, &extra) == 2) {

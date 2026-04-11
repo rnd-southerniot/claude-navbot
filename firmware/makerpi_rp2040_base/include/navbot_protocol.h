@@ -49,6 +49,7 @@ typedef enum navbot_command_type {
     NAVBOT_CMD_ESTOP,
     NAVBOT_CMD_CMD_VEL,
     NAVBOT_CMD_WHEEL_VEL,
+    NAVBOT_CMD_DIAG,
 } navbot_command_type_t;
 
 typedef struct navbot_command {

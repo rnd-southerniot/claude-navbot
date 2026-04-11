@@ -146,6 +146,10 @@ static void handle_command(const navbot_command_t *command, uint32_t stamp_ms) {
             navbot_telemetry_ack_ping();
             break;
 
+        case NAVBOT_CMD_DIAG:
+            navbot_telemetry_diag(stamp_ms, &left_wheel, &right_wheel);
+            break;
+
         case NAVBOT_CMD_STOP:
             stop_all();
             clear_motion_active(CONTROL_IDLE);

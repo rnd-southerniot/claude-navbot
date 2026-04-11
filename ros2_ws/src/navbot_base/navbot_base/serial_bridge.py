@@ -2,12 +2,14 @@ import math
 import time
 from typing import Optional
 
+import json
+
 import rclpy
 from geometry_msgs.msg import Quaternion, TransformStamped, Twist
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
-from std_msgs.msg import Bool, String
+from std_msgs.msg import Bool, Float32, String
 from tf2_ros import TransformBroadcaster
 
 from .checksum import append_checksum, validate_and_strip_checksum
@@ -70,6 +72,11 @@ class SerialBridgeNode(Node):
         self._stop_sent = False
         self._firmware_version: Optional[str] = None
         self._checksum_failures = 0
+        self._reconnect_count = 0
+        self._start_time = time.monotonic()
+        self._ping_sent_time: Optional[float] = None
+        self._last_latency_ms: Optional[float] = None
+        self._last_odom_time: Optional[float] = None
 
         self._odometry = DifferentialDriveOdometry(
             wheel_radius=self.wheel_radius,
@@ -83,11 +90,15 @@ class SerialBridgeNode(Node):
         self.joint_state_pub = self.create_publisher(JointState, "/joint_states", 20)
         self.controller_state_pub = self.create_publisher(String, "/base/controller_state", 10)
         self.estop_pub = self.create_publisher(Bool, "/base/estop", 10)
+        self.latency_pub = self.create_publisher(Float32, "/base/serial_latency_ms", 10)
+        self.health_pub = self.create_publisher(String, "/base/bridge_health", 10)
         self.tf_broadcaster = TransformBroadcaster(self) if self.publish_tf else None
 
         self.create_subscription(Twist, "/cmd_vel", self._cmd_vel_callback, 20)
         self.create_timer(0.05, self._write_timer_callback)
         self.create_timer(0.02, self._read_timer_callback)
+        self.create_timer(5.0, self._ping_timer_callback)
+        self.create_timer(1.0, self._health_timer_callback)
 
         self.get_logger().info("navbot serial bridge started")
 
@@ -143,8 +154,12 @@ class SerialBridgeNode(Node):
             # Switch to non-blocking for normal operation.
             port.timeout = 0.0
             self._serial = port
+            self._reconnect_count += 1
             version_str = f" (firmware {self._firmware_version})" if self._firmware_version else ""
-            self.get_logger().info(f"connected to {self.serial_port} @ {self.baud_rate}{version_str}")
+            self.get_logger().info(
+                f"connected to {self.serial_port} @ {self.baud_rate}{version_str}"
+                f" (connect #{self._reconnect_count})"
+            )
             self._stop_sent = False
         except SERIAL_ERRORS as exc:
             if now - self._last_connect_log > 5.0:
@@ -249,8 +264,16 @@ class SerialBridgeNode(Node):
         record_type = tokens[0]
         if record_type == "ACK":
             ack_command = tokens[1] if len(tokens) > 1 else "UNKNOWN"
-            if ack_command == "PING" and len(tokens) >= 3:
-                self._firmware_version = tokens[2]
+            if ack_command == "PING":
+                if len(tokens) >= 3:
+                    self._firmware_version = tokens[2]
+                if self._ping_sent_time is not None:
+                    latency_ms = (time.monotonic() - self._ping_sent_time) * 1000.0
+                    self._last_latency_ms = latency_ms
+                    self._ping_sent_time = None
+                    msg = Float32()
+                    msg.data = float(latency_ms)
+                    self.latency_pub.publish(msg)
             self._publish_controller_state(f"ACK {' '.join(tokens[1:])}")
         elif record_type == "ERR":
             if len(tokens) < 3:
@@ -294,6 +317,7 @@ class SerialBridgeNode(Node):
         left_velocity: float,
         right_velocity: float,
     ) -> None:
+        self._last_odom_time = time.monotonic()
         stamp_sec = stamp_ms / 1000.0
         state = self._odometry.update(
             stamp_sec=stamp_sec,
@@ -337,6 +361,30 @@ class SerialBridgeNode(Node):
 
     def _publish_controller_state(self, text: str) -> None:
         self.controller_state_pub.publish(String(data=text))
+
+    def _ping_timer_callback(self) -> None:
+        if self._serial is None:
+            return
+        self._ping_sent_time = time.monotonic()
+        self._write_line("PING")
+
+    def _health_timer_callback(self) -> None:
+        odom_age = None
+        if self._last_odom_time is not None:
+            odom_age = round(time.monotonic() - self._last_odom_time, 3)
+
+        payload = {
+            "serial_connected": self._serial is not None,
+            "firmware_version": self._firmware_version,
+            "uptime_sec": round(time.monotonic() - self._start_time, 1),
+            "reconnect_count": self._reconnect_count,
+            "checksum_failures": self._checksum_failures,
+            "last_odom_age_sec": odom_age,
+            "last_latency_ms": round(self._last_latency_ms, 2) if self._last_latency_ms is not None else None,
+        }
+        msg = String()
+        msg.data = json.dumps(payload, sort_keys=True)
+        self.health_pub.publish(msg)
 
     @staticmethod
     def _quaternion_from_yaw(yaw: float) -> Quaternion:

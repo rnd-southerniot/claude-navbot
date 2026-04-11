@@ -10,6 +10,9 @@ void pid_init(pid_ctrl_t *p, float kp, float ki, float kd, float out_min, float 
     p->integral = 0.0f;
     p->prev_error = 0.0f;
     p->output = 0.0f;
+    p->last_p_term = 0.0f;
+    p->last_i_term = 0.0f;
+    p->last_d_term = 0.0f;
 }
 
 float pid_update(pid_ctrl_t *p, float setpoint, float measurement, float dt) {
@@ -25,12 +28,17 @@ float pid_update(pid_ctrl_t *p, float setpoint, float measurement, float dt) {
         p->integral = -p->integral_max;
     }
 
+    float i_term = p->ki * p->integral;
+
     if (dt > 0.0f) {
         d_term = p->kd * (error - p->prev_error) / dt;
     }
 
     p->prev_error = error;
-    p->output = p_term + (p->ki * p->integral) + d_term;
+    p->last_p_term = p_term;
+    p->last_i_term = i_term;
+    p->last_d_term = d_term;
+    p->output = p_term + i_term + d_term;
 
     if (p->output > p->out_max) {
         p->output = p->out_max;
@@ -46,4 +54,7 @@ void pid_reset(pid_ctrl_t *p) {
     p->integral = 0.0f;
     p->prev_error = 0.0f;
     p->output = 0.0f;
+    p->last_p_term = 0.0f;
+    p->last_i_term = 0.0f;
+    p->last_d_term = 0.0f;
 }
