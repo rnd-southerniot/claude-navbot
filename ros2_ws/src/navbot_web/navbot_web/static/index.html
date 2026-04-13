@@ -76,10 +76,22 @@
         </div>
       </section>
 
+      <section class="panel batteries">
+        <div class="section-head">
+          <h2>Battery Voltages</h2>
+          <p>RP2040 ADC readings via voltage dividers on the motor and LiDAR power rails.</p>
+        </div>
+        <div class="metric-grid">
+          <div><span>Motor Rail</span><strong id="bat-motor-voltage">-</strong></div>
+          <div><span>LiDAR Rail</span><strong id="bat-lidar-voltage">-</strong></div>
+          <div><span>Last Update</span><strong id="bat-age">-</strong></div>
+        </div>
+      </section>
+
       <section class="panel power">
         <div class="section-head">
-          <h2>Power Telemetry</h2>
-          <p>INA238 rail telemetry only. This is measured voltage/current/power, not battery percentage.</p>
+          <h2>Pi Rail Telemetry</h2>
+          <p>INA238 rail telemetry on the Pi 5V bus. This is measured voltage/current/power, not battery percentage.</p>
         </div>
         <div class="metric-grid">
           <div><span>Status</span><strong id="power-status">Unknown</strong></div>

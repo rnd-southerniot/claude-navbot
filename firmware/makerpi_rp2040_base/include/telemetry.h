@@ -15,5 +15,6 @@ void navbot_telemetry_error(const char *code, const char *message);
 void navbot_telemetry_state(const char *mode, const char *fault);
 void navbot_telemetry_odom(uint32_t stamp_ms, const wheel_t *left, const wheel_t *right);
 void navbot_telemetry_diag(uint32_t stamp_ms, const wheel_t *left, const wheel_t *right);
+void navbot_telemetry_vbat(uint32_t stamp_ms, float motor_v, float lidar_v);
 
 #endif

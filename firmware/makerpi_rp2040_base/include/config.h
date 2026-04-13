@@ -60,4 +60,19 @@
 #define MOTOR_MAX_DUTY          999
 #define MOTOR_DUTY_SLEW_PER_TICK 30
 
+/*
+ * ADC voltage monitoring.
+ *
+ * Two external voltage dividers (ratio 1.691) scale the motor and LiDAR
+ * power rails down to the RP2040 ADC range (0–3.3 V).
+ *
+ * real_voltage = (adc_raw / 4095.0) * ADC_VREF * VDIV_RATIO
+ *
+ * Readings are smoothed with a 4-sample moving average to reduce flicker.
+ */
+#define ADC_VREF                3.3f
+#define VDIV_RATIO              1.691f
+#define VBAT_INTERVAL_MS        500
+#define VBAT_SMOOTH_SAMPLES     4
+
 #endif

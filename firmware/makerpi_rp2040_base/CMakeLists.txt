@@ -21,7 +21,7 @@ add_executable(firmware
 
 pico_generate_pio_header(firmware ${CMAKE_CURRENT_LIST_DIR}/pio/quadrature_encoder.pio)
 target_include_directories(firmware PRIVATE include)
-target_link_libraries(firmware pico_stdlib hardware_pwm hardware_pio hardware_watchdog)
+target_link_libraries(firmware pico_stdlib hardware_pwm hardware_pio hardware_watchdog hardware_adc)
 pico_enable_stdio_usb(firmware 1)
 pico_enable_stdio_uart(firmware 0)
 pico_add_extra_outputs(firmware)

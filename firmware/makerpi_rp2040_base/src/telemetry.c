@@ -50,6 +50,13 @@ void navbot_telemetry_odom(uint32_t stamp_ms, const wheel_t *left, const wheel_t
     navbot_telemetry_send(buf);
 }
 
+void navbot_telemetry_vbat(uint32_t stamp_ms, float motor_v, float lidar_v) {
+    char buf[NAVBOT_PROTOCOL_MAX_LINE];
+    snprintf(buf, sizeof(buf), "VBAT %lu %.3f %.3f",
+        (unsigned long)stamp_ms, (double)motor_v, (double)lidar_v);
+    navbot_telemetry_send(buf);
+}
+
 void navbot_telemetry_diag(uint32_t stamp_ms, const wheel_t *left, const wheel_t *right) {
     char buf[NAVBOT_PROTOCOL_MAX_LINE];
     snprintf(

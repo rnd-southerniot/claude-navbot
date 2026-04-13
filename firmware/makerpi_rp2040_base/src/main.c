@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <math.h>
 
+#include "hardware/adc.h"
 #include "hardware/pio.h"
 #include "hardware/watchdog.h"
 #include "pico/stdlib.h"
@@ -32,6 +33,13 @@ static uint8_t cmd_len = 0;
 static uint32_t last_motion_cmd_ms = 0;
 static bool motion_cmd_active = false;
 static uint32_t last_telem_ms = 0;
+static uint32_t last_vbat_ms = 0;
+
+/* 4-sample moving average buffers for ADC smoothing. */
+static uint16_t motor_v_buf[VBAT_SMOOTH_SAMPLES];
+static uint16_t lidar_v_buf[VBAT_SMOOTH_SAMPLES];
+static uint8_t vbat_buf_idx = 0;
+static bool vbat_buf_full = false;
 
 static uint32_t now_ms(void) {
     return to_ms_since_boot(get_absolute_time());
@@ -49,6 +57,43 @@ static float absf_local(float value) {
 static void poll_encoders(void) {
     wheel_encoder_update(&left_wheel);
     wheel_encoder_update(&right_wheel);
+}
+
+static uint16_t read_adc_channel(uint input) {
+    adc_select_input(input);
+    return adc_read();
+}
+
+static void vbat_sample(void) {
+    motor_v_buf[vbat_buf_idx] = read_adc_channel(1);  /* ADC1 = GP27 */
+    lidar_v_buf[vbat_buf_idx] = read_adc_channel(2);  /* ADC2 = GP28 */
+    vbat_buf_idx++;
+    if (vbat_buf_idx >= VBAT_SMOOTH_SAMPLES) {
+        vbat_buf_idx = 0;
+        vbat_buf_full = true;
+    }
+}
+
+static float vbat_average(const uint16_t *buf) {
+    uint8_t count = vbat_buf_full ? VBAT_SMOOTH_SAMPLES : vbat_buf_idx;
+    if (count == 0) {
+        return 0.0f;
+    }
+    uint32_t sum = 0;
+    for (uint8_t i = 0; i < count; i++) {
+        sum += buf[i];
+    }
+    float adc_v = ((float)sum / (float)count / 4095.0f) * ADC_VREF;
+    return adc_v * VDIV_RATIO;
+}
+
+static void publish_vbat_telemetry(uint32_t stamp_ms) {
+    if ((stamp_ms - last_vbat_ms) < VBAT_INTERVAL_MS) {
+        return;
+    }
+    last_vbat_ms = stamp_ms;
+    vbat_sample();
+    navbot_telemetry_vbat(stamp_ms, vbat_average(motor_v_buf), vbat_average(lidar_v_buf));
 }
 
 static const char *mode_name(void) {
@@ -85,6 +130,7 @@ static void publish_periodic_telemetry(uint32_t stamp_ms) {
         last_telem_ms = stamp_ms;
         publish_telemetry(stamp_ms);
     }
+    publish_vbat_telemetry(stamp_ms);
 }
 
 static void set_motion_active(control_mode_t mode, uint32_t stamp_ms) {
@@ -244,6 +290,10 @@ int main(void) {
 
     safety_init();
     watchdog_enable(200, true);
+
+    adc_init();
+    adc_gpio_init(PIN_ADC_MOTOR_V);
+    adc_gpio_init(PIN_ADC_LIDAR_V);
 
     uint sm_left = pio_claim_unused_sm(pio1, true);
     uint sm_right = pio_claim_unused_sm(pio1, true);
