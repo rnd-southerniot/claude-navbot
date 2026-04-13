@@ -20,9 +20,10 @@ ros2_ws/log/
 # macOS
 .DS_Store
 
-# IDE / editor
+# IDE / editor / tool state
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~

@@ -282,6 +282,27 @@ Current next step after that successful checkpoint:
 
 This is real rail telemetry from the INA238 on `i2c-1`. It is not a fake battery percentage. If the INA238 topic is unavailable, the current web-console build keeps rendering and shows unavailable values instead of breaking the page.
 
+## Deployment Status
+
+**CONDITIONAL GO** — validated 2026-04-13, firmware v1.2.0 (`eb4f0c2`).
+
+- Bench validation: 33/33 tests passed (safety, communication, sensor, security)
+- Soak test: 10.8 hours continuous, zero crashes, zero disconnections, zero checksum failures
+- Software stability: confirmed
+- Blocking hardware issue: Pi 5 undervoltage with current adapter under full sensor load
+
+Deployment conditions:
+
+1. Use Raspberry Pi 5 official 27W USB-C adapter (5.1V / 5A)
+2. Supervised operation for first 48 hours
+3. Maximum 8-hour continuous runtime until clean 24-hour soak with proper adapter
+4. LiDAR requires adequate power margin from the supply
+5. Teleop and SLAM mapping only — Nav2 autonomy not yet validated
+
+Rollback baseline: existing Pi image backup + RP2040 firmware backup.
+
+Full results: [docs/VALIDATION_RECORD_20260413.md](docs/VALIDATION_RECORD_20260413.md)
+
 ## Documentation Map
 
 - [docs/README.md](docs/README.md)
@@ -289,6 +310,11 @@ This is real rail telemetry from the INA238 on `i2c-1`. It is not a fake battery
 - [docs/RUNBOOK.md](docs/RUNBOOK.md)
 - [docs/VALIDATION.md](docs/VALIDATION.md)
 - [docs/WEB_CONSOLE.md](docs/WEB_CONSOLE.md)
+- [docs/POST_UPGRADE_VALIDATION.md](docs/POST_UPGRADE_VALIDATION.md)
+- [docs/DEPLOYMENT_VALIDATION.md](docs/DEPLOYMENT_VALIDATION.md)
+- [docs/VALIDATION_EXECUTION_WORKFLOW.md](docs/VALIDATION_EXECUTION_WORKFLOW.md)
+- [docs/VALIDATION_RECORD_20260413.md](docs/VALIDATION_RECORD_20260413.md)
 - [firmware/makerpi_rp2040_base/README.md](firmware/makerpi_rp2040_base/README.md)
+- [firmware/makerpi_rp2040_base/FLASHING.md](firmware/makerpi_rp2040_base/FLASHING.md)
 - [ros2_ws/README.md](ros2_ws/README.md)
 - [TODO.md](TODO.md)

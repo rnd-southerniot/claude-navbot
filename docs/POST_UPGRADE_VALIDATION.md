@@ -430,12 +430,17 @@ Change `watchdog_enable(200, false)` to `watchdog_enable(200, true)` so the watc
 
 ### Final Decision
 
-**BLOCKED — 3 fixes required before deployment.**
+**CONDITIONAL GO — validated 2026-04-13.**
 
-The system is architecturally sound and the 5-phase upgrade addressed the major safety, reliability, and security gaps. However, validation analysis revealed three issues that can cause real-world failures:
+All three blocking fixes were applied prior to validation:
 
-1. **DIAG truncation** produces malformed telemetry that PID tuning depends on
-2. **Odometry restart jump** causes multi-meter localization error after any RP2040 reboot
-3. **Watchdog mode** should be hardware-reset for maximum safety
+1. **DIAG truncation** — `NAVBOT_PROTOCOL_MAX_LINE` increased to 192
+2. **Odometry restart detection** — jump > 10 revolutions absorbed
+3. **Watchdog mode** — changed to hardware reset (`watchdog_enable(200, true)`)
 
-After these fixes plus passing the bench test matrix (S1-S8, C1-C10) and an 8-hour soak, the system moves to **READY FOR DEPLOYMENT**.
+Bench validation: **33/33 tests passed** (S1-S8, C1-C10, I1-I10, W1-W5).
+
+Soak test: **10.8 hours**, zero crashes, zero disconnections, zero checksum failures.
+
+Remaining blocker is hardware power quality (undervoltage from adapter), not software.
+See [VALIDATION_RECORD_20260413.md](VALIDATION_RECORD_20260413.md) for full results and deployment conditions.
