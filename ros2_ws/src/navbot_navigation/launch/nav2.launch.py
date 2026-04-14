@@ -18,6 +18,9 @@ def _launch_setup(_context):
     except PackageNotFoundError:
         return [LogInfo(msg="navbot_navigation: install Nav2 to enable navigation bringup")]
 
+    # Nav2 Jazzy navigation_launch.py includes velocity_smoother which
+    # subscribes to cmd_vel_nav and publishes to cmd_vel, so the serial
+    # bridge receives commands on /cmd_vel without extra remapping.
     launch_file = os.path.join(nav2_share, "launch", "navigation_launch.py")
     return [
         IncludeLaunchDescription(
