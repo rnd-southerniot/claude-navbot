@@ -11,6 +11,8 @@ build/
 __pycache__/
 *.pyc
 *.pyo
+.coverage
+htmlcov/
 
 # ROS 2 workspace build output
 ros2_ws/build/
