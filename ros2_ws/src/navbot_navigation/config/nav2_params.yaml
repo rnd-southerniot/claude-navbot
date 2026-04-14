@@ -36,14 +36,14 @@ controller_server:
       max_vel_x: 0.15
       min_vel_x: 0.0
       max_vel_theta: 0.8
-      min_speed_theta: 0.15
+      min_speed_theta: 0.25
       acc_lim_x: 0.3
       acc_lim_theta: 1.0
       decel_lim_x: -0.3
       decel_lim_theta: -1.0
       vx_samples: 10
       vy_samples: 1
-      vtheta_samples: 20
+      vtheta_samples: 10
       sim_time: 1.5
       transform_tolerance: 0.5
       critics: ["RotateToGoal", "Oscillation", "ObstacleFootprint", "GoalAlign", "PathAlign", "PathDist", "GoalDist"]
