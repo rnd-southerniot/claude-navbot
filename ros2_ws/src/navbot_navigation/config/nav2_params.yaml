@@ -34,7 +34,7 @@ controller_server:
       max_vel_x: 0.15
       min_vel_x: 0.0
       max_vel_theta: 0.8
-      min_speed_theta: 0.1
+      min_speed_theta: 0.15
       acc_lim_x: 0.3
       acc_lim_theta: 1.0
       decel_lim_x: -0.3
@@ -99,7 +99,7 @@ velocity_smoother:
     max_decel: [-0.5, 0.0, -1.5]
     odom_topic: /odom
     odom_duration: 0.1
-    deadband_velocity: [0.0, 0.0, 0.0]
+    deadband_velocity: [0.02, 0.0, 0.02]
     velocity_timeout: 1.0
 
 collision_monitor:
