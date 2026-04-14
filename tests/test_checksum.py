@@ -4,14 +4,7 @@ Validates the Python checksum implementation and the
 validate_and_strip_checksum function for correct and corrupt data.
 """
 
-import sys
-from pathlib import Path
-
 import pytest
-
-_BASE_SRC = Path(__file__).resolve().parent.parent / "ros2_ws" / "src" / "navbot_base"
-if str(_BASE_SRC) not in sys.path:
-    sys.path.insert(0, str(_BASE_SRC))
 
 from navbot_base.checksum import (
     append_checksum,

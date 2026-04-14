@@ -5,16 +5,8 @@ and per-wheel CPR handling against known geometric expectations.
 """
 
 import math
-import sys
-from pathlib import Path
 
 import pytest
-
-# Allow import of navbot_base from the workspace source tree without
-# installing the ROS 2 package.
-_BASE_SRC = Path(__file__).resolve().parent.parent / "ros2_ws" / "src" / "navbot_base"
-if str(_BASE_SRC) not in sys.path:
-    sys.path.insert(0, str(_BASE_SRC))
 
 from navbot_base.odometry import DifferentialDriveOdometry
 

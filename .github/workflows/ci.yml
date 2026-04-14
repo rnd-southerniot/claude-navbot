@@ -17,10 +17,14 @@ jobs:
           python-version: "3.12"
 
       - name: Install test dependencies
-        run: pip install pytest
+        run: pip install pytest pytest-cov
 
-      - name: Run unit tests
-        run: pytest tests/ -v
+      - name: Run unit tests with coverage
+        run: >
+          pytest tests/ -v
+          --cov=ros2_ws/src/navbot_base/navbot_base
+          --cov-report=term-missing
+          --cov-fail-under=0
 
   lint:
     runs-on: ubuntu-24.04
