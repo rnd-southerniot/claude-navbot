@@ -42,9 +42,51 @@ static uint16_t lidar_v_buf[VBAT_SMOOTH_SAMPLES];
 static uint8_t vbat_buf_idx = 0;
 static bool vbat_buf_full = false;
 
-#define STARTUP_BEEP_FREQ_HZ  1000
+#define BUZZER_FREQ_HZ        1000
 #define STARTUP_BEEP_ON_MS      80
 #define STARTUP_BEEP_GAP_MS     60
+#define MOTION_BEEP_MS         100
+
+/* Non-blocking buzzer state. */
+static uint buzzer_slice;
+static uint buzzer_chan;
+static uint32_t buzzer_off_ms = 0;  /* 0 = idle */
+
+static void buzzer_hw_init(void) {
+    buzzer_slice = pwm_gpio_to_slice_num(PIN_BUZZER);
+    buzzer_chan  = pwm_gpio_to_channel(PIN_BUZZER);
+    /* 125 MHz / 125 = 1 MHz tick, wrap for desired frequency. */
+    pwm_set_clkdiv(buzzer_slice, 125.0f);
+    pwm_set_wrap(buzzer_slice, (125000000 / 125 / BUZZER_FREQ_HZ) - 1);
+    pwm_set_chan_level(buzzer_slice, buzzer_chan,
+                       (125000000 / 125 / BUZZER_FREQ_HZ) / 2);
+}
+
+static void buzzer_on(void) {
+    gpio_set_function(PIN_BUZZER, GPIO_FUNC_PWM);
+    pwm_set_enabled(buzzer_slice, true);
+}
+
+static void buzzer_off(void) {
+    pwm_set_enabled(buzzer_slice, false);
+    gpio_set_function(PIN_BUZZER, GPIO_FUNC_SIO);
+    gpio_set_dir(PIN_BUZZER, GPIO_OUT);
+    gpio_put(PIN_BUZZER, 0);
+}
+
+/* Start a non-blocking beep for duration_ms. Called from control path. */
+static void buzzer_start(uint32_t duration_ms, uint32_t stamp_ms) {
+    buzzer_on();
+    buzzer_off_ms = stamp_ms + duration_ms;
+}
+
+/* Poll from main loop — turns off buzzer when time expires. */
+static void buzzer_tick(uint32_t stamp_ms) {
+    if (buzzer_off_ms != 0 && stamp_ms >= buzzer_off_ms) {
+        buzzer_off();
+        buzzer_off_ms = 0;
+    }
+}
 
 /*
  * Play a short two-beep pattern on the onboard piezo buzzer (GP22).
@@ -52,31 +94,19 @@ static bool vbat_buf_full = false;
  * Total blocking time: 220 ms.
  */
 static void startup_beep(void) {
-    gpio_set_function(PIN_BUZZER, GPIO_FUNC_PWM);
-    uint slice = pwm_gpio_to_slice_num(PIN_BUZZER);
-    uint chan  = pwm_gpio_to_channel(PIN_BUZZER);
-
-    /* 125 MHz / 125 = 1 MHz tick, wrap at 999 → 1 kHz tone. */
-    pwm_set_clkdiv(slice, 125.0f);
-    pwm_set_wrap(slice, (125000000 / 125 / STARTUP_BEEP_FREQ_HZ) - 1);
-    pwm_set_chan_level(slice, chan, (125000000 / 125 / STARTUP_BEEP_FREQ_HZ) / 2);
+    buzzer_hw_init();
 
     /* Beep 1 */
-    pwm_set_enabled(slice, true);
+    buzzer_on();
     sleep_ms(STARTUP_BEEP_ON_MS);
-    pwm_set_enabled(slice, false);
+    buzzer_off();
 
     sleep_ms(STARTUP_BEEP_GAP_MS);
 
     /* Beep 2 */
-    pwm_set_enabled(slice, true);
+    buzzer_on();
     sleep_ms(STARTUP_BEEP_ON_MS);
-    pwm_set_enabled(slice, false);
-
-    /* Leave buzzer GPIO low so it stays silent. */
-    gpio_set_function(PIN_BUZZER, GPIO_FUNC_SIO);
-    gpio_set_dir(PIN_BUZZER, GPIO_OUT);
-    gpio_put(PIN_BUZZER, 0);
+    buzzer_off();
 }
 
 static uint32_t now_ms(void) {
@@ -172,6 +202,10 @@ static void publish_periodic_telemetry(uint32_t stamp_ms) {
 }
 
 static void set_motion_active(control_mode_t mode, uint32_t stamp_ms) {
+    /* Short beep on transition from idle/timeout to active motion. */
+    if (!motion_cmd_active) {
+        buzzer_start(MOTION_BEEP_MS, stamp_ms);
+    }
     control_mode = mode;
     last_motion_cmd_ms = stamp_ms;
     motion_cmd_active = true;
@@ -370,6 +404,7 @@ int main(void) {
 
     for (;;) {
         watchdog_update();
+        buzzer_tick(now_ms());
         poll_encoders();
 
         if (!stdio_usb_connected() && motion_cmd_active) {
