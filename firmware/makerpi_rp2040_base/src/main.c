@@ -4,6 +4,7 @@
 #include <math.h>
 
 #include "hardware/adc.h"
+#include "hardware/pwm.h"
 #include "hardware/pio.h"
 #include "hardware/watchdog.h"
 #include "pico/stdlib.h"
@@ -40,6 +41,43 @@ static uint16_t motor_v_buf[VBAT_SMOOTH_SAMPLES];
 static uint16_t lidar_v_buf[VBAT_SMOOTH_SAMPLES];
 static uint8_t vbat_buf_idx = 0;
 static bool vbat_buf_full = false;
+
+#define STARTUP_BEEP_FREQ_HZ  1000
+#define STARTUP_BEEP_ON_MS      80
+#define STARTUP_BEEP_GAP_MS     60
+
+/*
+ * Play a short two-beep pattern on the onboard piezo buzzer (GP22).
+ * Called once during boot before watchdog_enable() to avoid trip risk.
+ * Total blocking time: 220 ms.
+ */
+static void startup_beep(void) {
+    gpio_set_function(PIN_BUZZER, GPIO_FUNC_PWM);
+    uint slice = pwm_gpio_to_slice_num(PIN_BUZZER);
+    uint chan  = pwm_gpio_to_channel(PIN_BUZZER);
+
+    /* 125 MHz / 125 = 1 MHz tick, wrap at 999 → 1 kHz tone. */
+    pwm_set_clkdiv(slice, 125.0f);
+    pwm_set_wrap(slice, (125000000 / 125 / STARTUP_BEEP_FREQ_HZ) - 1);
+    pwm_set_chan_level(slice, chan, (125000000 / 125 / STARTUP_BEEP_FREQ_HZ) / 2);
+
+    /* Beep 1 */
+    pwm_set_enabled(slice, true);
+    sleep_ms(STARTUP_BEEP_ON_MS);
+    pwm_set_enabled(slice, false);
+
+    sleep_ms(STARTUP_BEEP_GAP_MS);
+
+    /* Beep 2 */
+    pwm_set_enabled(slice, true);
+    sleep_ms(STARTUP_BEEP_ON_MS);
+    pwm_set_enabled(slice, false);
+
+    /* Leave buzzer GPIO low so it stays silent. */
+    gpio_set_function(PIN_BUZZER, GPIO_FUNC_SIO);
+    gpio_set_dir(PIN_BUZZER, GPIO_OUT);
+    gpio_put(PIN_BUZZER, 0);
+}
 
 static uint32_t now_ms(void) {
     return to_ms_since_boot(get_absolute_time());
@@ -289,6 +327,7 @@ int main(void) {
     setvbuf(stdout, NULL, _IONBF, 0);
 
     safety_init();
+    startup_beep();
     watchdog_enable(200, true);
 
     adc_init();
