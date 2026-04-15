@@ -13,8 +13,11 @@ navbot_l3gd20_lsm303d_reader:
     angular_velocity_variance: 0.0004
     linear_acceleration_variance: 0.04
     magnetic_field_variance: 1.0e-10
-    # Planar compass calibration captured on 2026-04-11.
-    # X/Y are calibrated for ground-robot heading; Z remains uncalibrated until a 3D tilt capture.
+    # Planar compass calibration captured on 2026-04-11 in SENSOR frame.
+    # Sensor frame: X=right, Y=forward, Z=up.
+    # The driver remaps to robot frame (X=forward, Y=left, Z=up) after
+    # applying these offsets. Do not swap these values.
+    # Z remains uncalibrated until a 3D tilt capture.
     mag_offset_x_t: -1.604545454545e-05
     mag_offset_y_t: -1.69090909091e-05
     mag_offset_z_t: 0.0

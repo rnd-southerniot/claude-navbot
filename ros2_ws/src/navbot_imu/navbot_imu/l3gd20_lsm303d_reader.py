@@ -246,7 +246,23 @@ class L3gd20Lsm303dReader:
         self._cached_probe = probe
         self._configured = True
 
-    def read_sample(self) -> tuple[ImuProbeStatus, tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]:
+    def read_sample(self) -> tuple[
+        ImuProbeStatus,
+        tuple[float, float, float],
+        tuple[float, float, float],
+        tuple[float, float, float],
+        tuple[float, float, float],
+    ]:
+        """Read gyro, accel, and mag samples.
+
+        Returns all data in **robot frame** (X=forward, Y=left, Z=up).
+        The sensor board frame (X=right, Y=forward, Z=up) is remapped
+        internally before returning.
+
+        Returns: (probe, gyro, accel, mag_robot, mag_sensor)
+            mag_sensor is the raw sensor-frame magnetometer reading,
+            needed for applying sensor-frame calibration offsets.
+        """
         self.connect()
         self._configure()
         assert self._cached_probe is not None
@@ -260,22 +276,33 @@ class L3gd20Lsm303dReader:
             ax, ay, az = self._read_vector3(self.accel_address, LSM303DLHC_ACCEL_REG_OUT_X_L)
             mx, my, mz = self._read_lsm303dlhc_mag(self.mag_address)
 
-        gyro = (
+        # Scale raw sensor readings to SI units (still in sensor frame).
+        gyro_s = (
             gx * self.gyro_rad_per_sec_per_lsb,
             gy * self.gyro_rad_per_sec_per_lsb,
             gz * self.gyro_rad_per_sec_per_lsb,
         )
-        accel = (
+        accel_s = (
             ax * self.accel_mps2_per_lsb,
             ay * self.accel_mps2_per_lsb,
             az * self.accel_mps2_per_lsb,
         )
-        mag = (
+        mag_s = (
             mx * self.mag_tesla_per_lsb_xy,
             my * self.mag_tesla_per_lsb_xy,
             mz * self.mag_tesla_per_lsb_z,
         )
-        return probe, gyro, accel, mag
+
+        # Remap from sensor frame (X=right, Y=forward, Z=up) to
+        # robot frame (X=forward, Y=left, Z=up):
+        #   robot_x =  sensor_y
+        #   robot_y = -sensor_x
+        #   robot_z =  sensor_z
+        gyro = (gyro_s[1], -gyro_s[0], gyro_s[2])
+        accel = (accel_s[1], -accel_s[0], accel_s[2])
+        mag = (mag_s[1], -mag_s[0], mag_s[2])
+
+        return probe, gyro, accel, mag, mag_s
 
 
 class L3gd20Lsm303dReaderNode(Node):
@@ -351,9 +378,12 @@ class L3gd20Lsm303dReaderNode(Node):
 
     def _poll(self) -> None:
         try:
-            probe, gyro, accel, mag = self.reader.read_sample()
+            # gyro, accel, mag are in robot frame (X=forward, Y=left, Z=up).
+            # mag_sensor is in sensor frame for applying sensor-frame calibration.
+            probe, gyro, accel, mag, mag_sensor = self.reader.read_sample()
             now = self.get_clock().now().to_msg()
 
+            # Publish IMU in robot frame.
             imu_msg = Imu()
             imu_msg.header.stamp = now
             imu_msg.header.frame_id = self.frame_id
@@ -372,6 +402,7 @@ class L3gd20Lsm303dReaderNode(Node):
             imu_msg.linear_acceleration.z = accel[2]
             self.imu_pub.publish(imu_msg)
 
+            # Publish magnetometer in robot frame.
             mag_msg = MagneticField()
             mag_msg.header.stamp = now
             mag_msg.header.frame_id = self.frame_id
@@ -383,11 +414,14 @@ class L3gd20Lsm303dReaderNode(Node):
             mag_msg.magnetic_field.z = mag[2]
             self.mag_pub.publish(mag_msg)
 
-            calibrated_mag = (
-                (mag[0] - self.mag_offset[0]) * self.mag_scale[0],
-                (mag[1] - self.mag_offset[1]) * self.mag_scale[1],
-                (mag[2] - self.mag_offset[2]) * self.mag_scale[2],
-            )
+            # Compass heading: apply sensor-frame calibration offsets/scales,
+            # then remap to robot frame for YPR computation.
+            # Config offsets (mag_offset_x_t, etc.) are in sensor frame.
+            cal_sx = (mag_sensor[0] - self.mag_offset[0]) * self.mag_scale[0]
+            cal_sy = (mag_sensor[1] - self.mag_offset[1]) * self.mag_scale[1]
+            cal_sz = (mag_sensor[2] - self.mag_offset[2]) * self.mag_scale[2]
+            # Remap calibrated mag to robot frame for YPR.
+            calibrated_mag = (cal_sy, -cal_sx, cal_sz)
             yaw, pitch, roll = _compute_ypr(accel, calibrated_mag)
             yaw = _wrap_pi(
                 (yaw * self.yaw_sign) + self.magnetic_declination_rad + self.yaw_offset_rad
