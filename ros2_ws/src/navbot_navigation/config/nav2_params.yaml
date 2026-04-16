@@ -64,6 +64,7 @@ controller_server:
       vy_samples: 1
       vtheta_samples: 10
       sim_time: 1.5
+      discretize_by_time: true
       transform_tolerance: 1.0
       critics: ["RotateToGoal", "Oscillation", "ObstacleFootprint", "GoalAlign", "PathAlign", "PathDist", "GoalDist"]
       ObstacleFootprint.scale: 0.02
