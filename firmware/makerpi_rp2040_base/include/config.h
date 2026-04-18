@@ -14,7 +14,7 @@
 
 #define LEFT_WHEEL_RADIUS_M   0.033f
 #define RIGHT_WHEEL_RADIUS_M  0.033f
-#define WHEEL_SEPARATION_M    0.160f
+#define WHEEL_SEPARATION_M    0.180f
 
 #define MAX_LINEAR_MPS        0.25f
 #define MAX_ANGULAR_RPS       2.50f
@@ -34,9 +34,9 @@
 
 #define ESTOP_DEBOUNCE_MS       50
 #define COMMAND_TIMEOUT_MS      500
-#define STALL_DUTY_THRESHOLD    100
-#define STALL_DELTA_THRESHOLD   2
-#define STALL_TIMEOUT_MS        500
+#define STALL_DUTY_THRESHOLD    200
+#define STALL_DELTA_THRESHOLD   1
+#define STALL_TIMEOUT_MS        800
 #define STOP_SETPOINT_CPS_DEADBAND 20.0f
 /*
  * Ignore stall accumulation briefly after a meaningful wheel setpoint change.
@@ -44,7 +44,7 @@
  * This avoids false stall trips during ground startup, reversals, and other
  * low-speed transitions where duty rises before encoder motion fully settles.
  */
-#define STALL_STARTUP_GRACE_MS  800
+#define STALL_STARTUP_GRACE_MS  1200
 #define STALL_SETPOINT_CHANGE_CPS 100.0f
 /*
  * Optional continuous-run guard.
