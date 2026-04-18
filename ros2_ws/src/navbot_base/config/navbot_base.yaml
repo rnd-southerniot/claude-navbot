@@ -3,7 +3,7 @@ navbot_serial_bridge:
     serial_port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_E661410403114B35-if00
     baud_rate: 115200
     wheel_radius: 0.033
-    wheel_separation: 0.160
+    wheel_separation: 0.180
     counts_per_revolution: 3945
     left_counts_per_revolution: 3943
     right_counts_per_revolution: 3946
