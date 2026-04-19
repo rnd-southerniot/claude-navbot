@@ -121,7 +121,7 @@ check_preconditions() {
     fi
 
     # Network reachable
-    if ! curl -fsS --max-time 5 https://packages.ros.org/ros2/ubuntu/dists/ > /dev/null; then
+    if ! curl -fsS --max-time 5 http://packages.ros.org/ros2/ubuntu/dists/ > /dev/null; then
         die "Cannot reach packages.ros.org — check network." 1
     fi
 
@@ -180,6 +180,14 @@ setup_ros_repo() {
     sudo dpkg -i /tmp/ros2-apt-source.deb
     rm -f /tmp/ros2-apt-source.deb
 
+    # Workaround for OSUOSL mirror serving wrong cert (2026-04-19).
+    # Rewrite ROS apt source from https:// to http://. GPG signature
+    # verification remains mandatory via signed-by directive.
+    if grep -rql "https://packages.ros.org" /etc/apt/sources.list.d/ 2>/dev/null; then
+        sudo sed -i "s|https://packages.ros.org|http://packages.ros.org|g" /etc/apt/sources.list.d/*ros* 2>/dev/null || true
+        log_ok "ROS apt source rewritten to http:// (OSUOSL cert workaround)"
+    fi
+
     sudo apt-get update -qq
     log_ok "ROS 2 apt repository configured (version $apt_source_version)"
 }
@@ -210,7 +218,8 @@ install_ros2_packages() {
         ros-$ROS_DISTRO-tf-transformations
 
         # --- Sensors ---
-        ros-$ROS_DISTRO-sllidar-ros2
+        # sllidar_ros2 is built from source via Step 11 (navbot.repos)
+        # No apt package exists for ros-$ROS_DISTRO-sllidar-ros2
 
         # --- Teleoperation (three layers: keyboard, joystick, web) ---
         ros-$ROS_DISTRO-teleop-twist-keyboard
@@ -512,7 +521,51 @@ setup_workspace_dir() {
     log_info "  git clone -b navbot-experimental https://github.com/rnd-southerniot/claude-navbot.git"
 }
 
-# ---------- Step 11: Summary -------------------------------------------------
+# ---------- Step 11: External source dependencies (vcs import) ---------------
+
+install_external_sources() {
+    step_header "11" "External source dependencies (sllidar_ros2 and others)"
+
+    local repo_root=$HOME/projects/claude-navbot
+    local repos_file=$repo_root/ros2_ws/navbot.repos
+    local ws_src=$repo_root/ros2_ws/src
+
+    if [[ ! -f "$repos_file" ]]; then
+        log_warn "navbot.repos not found at $repos_file"
+        log_warn "Skipping external source install. Clone repo first, then rerun."
+        return 0
+    fi
+
+    if [[ ! -d "$ws_src" ]]; then
+        log_warn "Workspace src directory missing: $ws_src"
+        log_warn "Skipping external source install."
+        return 0
+    fi
+
+    # Import external repos listed in navbot.repos
+    # vcs import is idempotent — already-cloned repos are updated, not duplicated
+    log_info "Importing external sources via vcs..."
+    if command -v vcs >/dev/null 2>&1; then
+        cd "$ws_src" && vcs import < "$repos_file" || {
+            log_warn "vcs import had warnings — check output above"
+        }
+        log_ok "External sources imported into $ws_src"
+    else
+        log_error "vcs tool not found — install python3-vcstool first"
+        return 1
+    fi
+
+    # Pull rosdep dependencies for everything in src/
+    log_info "Installing rosdep dependencies for workspace..."
+    source /opt/ros/$ROS_DISTRO/setup.bash
+    cd "$repo_root/ros2_ws" && \
+        rosdep install --from-paths src --ignore-src -r -y 2>&1 | \
+        tail -20 || log_warn "rosdep reported issues — review above"
+
+    log_ok "External sources ready. User must run 'colcon build' next."
+}
+
+# ---------- Step 12: Summary -------------------------------------------------
 
 print_summary() {
     step_header "DONE" "Summary"
@@ -549,10 +602,8 @@ ${C_YELLOW}Next steps:${C_RESET}
    git clone -b navbot-experimental https://github.com/rnd-southerniot/claude-navbot.git
    cd claude-navbot
 
-3. Fetch external ROS 2 dependencies:
-   cd ros2_ws
-   vcs import --input navbot.repos src   # only if navbot.repos exists
-   rosdep install --from-paths src --ignore-src -r -y
+3. External sources already imported and rosdep resolved by setup-pi.sh
+   (Step 11). Proceed directly to colcon build.
 
 4. Build the workspace:
    colcon build --symlink-install
@@ -615,6 +666,7 @@ main() {
     setup_bashrc
     setup_cyclonedds
     setup_workspace_dir
+    install_external_sources
     print_summary
 
     exit 0
