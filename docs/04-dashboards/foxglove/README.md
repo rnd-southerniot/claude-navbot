@@ -50,10 +50,59 @@ Right half: four-panel tabbed overview.
 - **Diagnostic summary** — consumes `/diagnostics`; quiet until a node publishes `diagnostic_msgs/DiagnosticArray`.
 - **`/dock_pose` raw messages** — placeholder for future docking work; empty when no dock is registered.
 
-## Known cosmetic issues (Phase C)
+## Troubleshooting
 
-- `/scan` shows Foxglove's black/magenta warning pattern on beams with no return. The RPLIDAR C1 emits `+Inf` for those and Foxglove flags them. Harmless — the valid points render correctly. Fix: add a `laser_filters::LaserScanRangeFilter` node to the bringup, or patch sllidar_ros2 to emit `NaN`.
-- TF frame labels ("laser_link", "left_wheel_link", …) render large by default. Silence via 3D panel ⚙ → Scene → Labels off, or reduce Label size to `0.05`.
+### URDF fails to load via "Topic" source
+
+**Symptom:** 3D panel shows `invalid topic: /robot_description` error on the URDF custom layer.
+
+**Cause:** Foxglove Studio's URDF custom layer rejects plain `std_msgs/String` topics (which is what `robot_state_publisher` uses for `/robot_description`) when `Source` is set to `Topic`.
+
+**Fix:** In the 3D panel Custom layers → URDF settings, switch **Source** from `Topic` to `Parameter`, and set the parameter to `/robot_state_publisher.robot_description` (dot syntax, not slash). The committed layout already uses this.
+
+### LiDAR scan shows a black/magenta checker pattern
+
+**Symptom:** Some `/scan` points render with an alternating black/magenta pattern instead of normal colour.
+
+**Cause:** RPLIDAR C1 emits `+Inf` in `ranges[i]` for beams with no return (pointing beyond 16 m or at absorbent surfaces). Foxglove flags those as invalid and replaces the colour.
+
+**Fix (committed):** The bringup now includes a `laser_filters::LaserScanRangeFilter` node (`ros2_ws/src/navbot_lidar/launch/scan_filter.launch.py`) that replaces out-of-range values with `NaN`. Foxglove handles `NaN` by not rendering that beam, so the warning pattern is gone on the current build. The raw sllidar output is still available on `/scan_raw` for debugging.
+
+**Ad-hoc (if running without the filter):** Set a manual max range on the `/scan` topic in the 3D panel (Value max: 16), or change Color mode to Flat.
+
+### Foxglove Studio reports "Connection failed" or the WebSocket times out
+
+Check in order:
+
+1. Is `foxglove_bridge` running on the Pi?
+
+   ```bash
+   ssh arif@192.168.68.101 "pgrep -af foxglove_bridge"
+   ```
+
+2. Is port 8765 listening?
+
+   ```bash
+   ssh arif@192.168.68.101 "ss -tlnp | grep 8765"
+   ```
+
+3. Is UFW blocking?
+
+   ```bash
+   ssh arif@192.168.68.101 "sudo ufw status"   # should be inactive
+   ```
+
+4. Is the Mac on the same subnet (`192.168.68.x`)?
+
+   ```bash
+   ifconfig en0 | grep inet
+   ```
+
+5. Is the Pi reachable from the Mac?
+
+   ```bash
+   ping -c 2 192.168.68.101
+   ```
 
 ## When to update this layout
 

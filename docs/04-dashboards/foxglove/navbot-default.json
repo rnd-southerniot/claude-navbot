@@ -93,8 +93,12 @@
         "far": 5000
       },
       "followMode": "follow-pose",
-      "scene": {},
-      "transforms": {},
+      "scene": {
+        "labelScaleFactor": 0.3
+      },
+      "transforms": {
+        "labelSize": 0.04
+      },
       "topics": {
         "/scan": {
           "visible": true,
