@@ -47,7 +47,7 @@ set -euo pipefail
 readonly REQUIRED_UBUNTU_VERSION="24.04"
 readonly REQUIRED_UBUNTU_CODENAME="noble"
 readonly REQUIRED_ARCH="arm64"
-readonly ROS_DISTRO="jazzy"
+ROS_DISTRO="jazzy"  # NOT readonly — ROS's setup.bash re-assigns this
 readonly RMW_IMPL="rmw_cyclonedds_cpp"
 readonly ROS_DOMAIN="0"
 
