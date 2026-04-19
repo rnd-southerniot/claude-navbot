@@ -17,6 +17,13 @@ ros2_ws/build/
 ros2_ws/install/
 ros2_ws/log/
 
+# vcs-imported external sources (see ros2_ws/navbot.repos)
+ros2_ws/src/sllidar_ros2/
+
+# emergency/sed backup files
+*.backup
+*.bak
+
 # macOS
 .DS_Store
 
