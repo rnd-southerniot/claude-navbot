@@ -91,6 +91,10 @@ behavior_server:
     local_frame: odom
     global_frame: map
     robot_base_frame: base_footprint
+    drive_on_heading:
+      acceleration_limit: 0.5
+      deceleration_limit: -0.5
+      minimum_speed: 0.0
 
 global_costmap:
   global_costmap:
