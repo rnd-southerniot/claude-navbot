@@ -437,7 +437,7 @@ $marker
 source /opt/ros/$ROS_DISTRO/setup.bash
 export RMW_IMPLEMENTATION=$RMW_IMPL
 export ROS_DOMAIN_ID=$ROS_DOMAIN
-export ROS_LOCALHOST_ONLY=0
+export ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET
 
 # Source workspace if present
 if [ -f \$HOME/projects/claude-navbot/ros2_ws/install/setup.bash ]; then
