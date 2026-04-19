@@ -569,6 +569,44 @@ install_external_sources() {
     log_ok "External sources ready. User must run 'colcon build' next."
 }
 
+# ---------- Step 11.5: Kernel network tuning (CycloneDDS) --------------------
+
+configure_kernel_tuning() {
+    log_info "Configuring kernel network buffers for CycloneDDS..."
+
+    local sysctl_conf="/etc/sysctl.d/10-cyclonedds.conf"
+
+    if [[ -f "$sysctl_conf" ]] && grep -q "net.core.rmem_max=16777216" "$sysctl_conf"; then
+        log_info "  sysctl config already in place — skipping"
+        return 0
+    fi
+
+    sudo tee "$sysctl_conf" > /dev/null <<'EOF'
+# CycloneDDS requires >=10MB socket buffers per ~/.ros/cyclonedds.xml
+# Ubuntu 24.04 default net.core.rmem_max is 208KB which causes every
+# ROS 2 node to abort at rmw_create_node() with:
+#   failed to increase socket receive buffer size to at least 10485760
+# Setting 16MB gives 6MB headroom over the DDS minimum.
+# See: https://docs.ros.org/en/jazzy/How-To-Guides/DDS-tuning.html
+net.core.rmem_max=16777216
+net.core.rmem_default=16777216
+net.core.wmem_max=16777216
+net.core.wmem_default=16777216
+EOF
+
+    sudo sysctl -p "$sysctl_conf" > /dev/null
+
+    # Verify applied
+    local rmem_max
+    rmem_max=$(sysctl -n net.core.rmem_max)
+    if [[ "$rmem_max" != "16777216" ]]; then
+        log_error "  sysctl apply failed: rmem_max=$rmem_max (expected 16777216)"
+        return 1
+    fi
+
+    log_info "  kernel buffers: rmem_max=16MB, wmem_max=16MB applied"
+}
+
 # ---------- Step 12: Summary -------------------------------------------------
 
 print_summary() {
@@ -671,6 +709,7 @@ main() {
     setup_cyclonedds
     setup_workspace_dir
     install_external_sources
+    configure_kernel_tuning || { log_error "kernel tuning failed"; exit 1; }
     print_summary
 
     exit 0
