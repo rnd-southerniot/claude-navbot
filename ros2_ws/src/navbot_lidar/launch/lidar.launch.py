@@ -39,6 +39,7 @@ def _launch_setup(_context):
                         "scan_mode": scan_mode,
                     },
                 ],
+                remappings=[("scan", "/scan_raw")],
             )
         ]
     except PackageNotFoundError:

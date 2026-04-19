@@ -220,6 +220,7 @@ install_ros2_packages() {
         # --- Sensors ---
         # sllidar_ros2 is built from source via Step 11 (navbot.repos)
         # No apt package exists for ros-$ROS_DISTRO-sllidar-ros2
+        ros-$ROS_DISTRO-laser-filters
 
         # --- Teleoperation (three layers: keyboard, joystick, web) ---
         ros-$ROS_DISTRO-teleop-twist-keyboard

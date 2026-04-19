@@ -18,6 +18,11 @@ def generate_launch_description():
         "launch",
         "lidar.launch.py",
     )
+    filter_launch = os.path.join(
+        get_package_share_directory("navbot_lidar"),
+        "launch",
+        "scan_filter.launch.py",
+    )
     power_launch = os.path.join(
         get_package_share_directory("navbot_power"),
         "launch",
@@ -42,6 +47,7 @@ def generate_launch_description():
                 PythonLaunchDescriptionSource(lidar_launch),
                 launch_arguments={"serial_port": lidar_serial_port}.items(),
             ),
+            IncludeLaunchDescription(PythonLaunchDescriptionSource(filter_launch)),
             IncludeLaunchDescription(PythonLaunchDescriptionSource(power_launch)),
             TimerAction(
                 period=base_start_delay,
