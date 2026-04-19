@@ -557,7 +557,11 @@ install_external_sources() {
 
     # Pull rosdep dependencies for everything in src/
     log_info "Installing rosdep dependencies for workspace..."
+    # ROS 2 setup.bash reads unbound vars (e.g. AMENT_TRACE_SETUP_FILES).
+    # Temporarily disable -u to avoid 'unbound variable' crashes.
+    set +u
     source /opt/ros/$ROS_DISTRO/setup.bash
+    set -u
     cd "$repo_root/ros2_ws" && \
         rosdep install --from-paths src --ignore-src -r -y 2>&1 | \
         tail -20 || log_warn "rosdep reported issues — review above"
