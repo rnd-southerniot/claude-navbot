@@ -1,5 +1,12 @@
 # Web Console
 
+> **Status note (2026-04 onward):** `navbot_web` is being succeeded by
+> Foxglove bridge for new Navbot work. The package still ships and is
+> documented here as the current bring-up console, but the Foxglove
+> setup at [foxglove/README.md](foxglove/README.md) is the recommended
+> path for new session work. This doc will be retired once Foxglove
+> covers the capture workflow that `navbot_web` still owns.
+
 ## Purpose
 
 `navbot_web` is a local-network ground-test console. It is an operator aid for bringup, not a replacement for firmware timeout, estop, RViz, SLAM tools, or Nav2.

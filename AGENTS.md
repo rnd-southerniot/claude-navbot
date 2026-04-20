@@ -5,10 +5,11 @@
 When resuming work in this repo, read these first:
 
 1. `README.md`
-2. `docs/README.md`
+2. `docs/index.md`
 3. `docs/RUNBOOK.md`
-4. `docs/VALIDATION.md`
-5. `TODO.md`
+4. `docs/project-status.md`
+5. `docs/validation/README.md`
+6. `TODO.md`
 
 ## Canonical working copy
 
@@ -43,6 +44,6 @@ Do not silently remove or ignore that dependency when resuming work.
 - Do not overclaim production readiness
 - Do not jump into aggressive autonomy/Nav2 work before dependency cleanup and calibration review
 - If new hardware/runtime truths are confirmed, update:
-  - `docs/architecture.md`
-  - `docs/VALIDATION.md`
+  - `docs/architecture/system.md`
+  - `docs/validation/README.md`
   - `docs/RUNBOOK.md`

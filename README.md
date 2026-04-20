@@ -233,7 +233,7 @@ Tonight-style minimal flow:
 
 ```bash
 cd /home/arif/projects/makerpi-rp2040-ros2-navbot
-./scripts/setup_pi.sh
+./scripts/setup-pi.sh
 ./scripts/build_ros2_ws.sh
 ./scripts/serial_check.sh
 ```
@@ -305,15 +305,20 @@ Full results: [docs/VALIDATION_RECORD_20260413.md](docs/VALIDATION_RECORD_202604
 
 ## Documentation Map
 
-- [docs/README.md](docs/README.md)
-- [docs/architecture.md](docs/architecture.md)
-- [docs/RUNBOOK.md](docs/RUNBOOK.md)
-- [docs/VALIDATION.md](docs/VALIDATION.md)
-- [docs/WEB_CONSOLE.md](docs/WEB_CONSOLE.md)
-- [docs/POST_UPGRADE_VALIDATION.md](docs/POST_UPGRADE_VALIDATION.md)
-- [docs/DEPLOYMENT_VALIDATION.md](docs/DEPLOYMENT_VALIDATION.md)
-- [docs/VALIDATION_EXECUTION_WORKFLOW.md](docs/VALIDATION_EXECUTION_WORKFLOW.md)
-- [docs/VALIDATION_RECORD_20260413.md](docs/VALIDATION_RECORD_20260413.md)
+- [docs/index.md](docs/index.md) — navigation hub for all project docs
+- [docs/RUNBOOK.md](docs/RUNBOOK.md) — pre-flight, startup/shutdown, incident response, troubleshooting
+- [docs/power-architecture.md](docs/power-architecture.md) — three-battery system with Mermaid diagrams
+- [docs/project-status.md](docs/project-status.md) — current state and Phase C backlog
+- [docs/architecture/system.md](docs/architecture/system.md) — hardware split, ROS graph, serial protocol
+- [docs/operations/web-console.md](docs/operations/web-console.md) — `navbot_web` browser console
+- [docs/operations/foxglove/README.md](docs/operations/foxglove/README.md) — Foxglove bridge and default layout
+- [docs/hardware/pi-rebuild.md](docs/hardware/pi-rebuild.md) — Pi 5 rebuild procedure and five silent bugs
+- [docs/hardware/ina238.md](docs/hardware/ina238.md) — INA238 chip, driver, troubleshooting
+- [docs/hardware/lidar-mount.md](docs/hardware/lidar-mount.md) — RPLIDAR C1 mount conventions
+- [docs/testing/motion-tests.md](docs/testing/motion-tests.md) — 120 mm drive result and coast analysis
+- [docs/validation/README.md](docs/validation/README.md) — validated runtime checkpoints
+- [docs/validation/records/](docs/validation/records/) — archived session records (v1.2.0 freeze, pre-wipe calibration, DWB session)
+- [docs/notes/brake-attempt-forensic.md](docs/notes/brake-attempt-forensic.md) — regen-brake experiment forensic
 - [firmware/makerpi_rp2040_base/README.md](firmware/makerpi_rp2040_base/README.md)
 - [firmware/makerpi_rp2040_base/FLASHING.md](firmware/makerpi_rp2040_base/FLASHING.md)
 - [ros2_ws/README.md](ros2_ws/README.md)
