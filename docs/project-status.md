@@ -1,10 +1,13 @@
 # Navbot Project Status
 
-**Last updated:** 2026-04-20 (counter-drive session handoff)
+**Last updated:** 2026-04-21 (counter-drive floor-validated at 0.05 and 0.1 m/s)
 **Branch:** `navbot-experimental`
-**HEAD at update time:** `f2b6877` (TEST_PWM bench command; counter-drive session deferred)
-**Firmware version:** `1.3.0` (source with TEST_PWM enabled); `1.2.0` last-flashed validation freeze
-  (see [validation/records/2026-04-13-record.md](validation/records/2026-04-13-record.md)).
+**HEAD at update time:** `77375a2` (counter-drive Phase 6 validation record)
+**Firmware version:** `1.3.0` with counter-drive + TEST_PWM enabled; last-flashed
+  binary on RP2040 is the CD-on build from commit `9b6d46a`.
+**Key milestone commits:**
+  `pre-counterdrive-code-v2` → `5185130` (FSM implemented, disabled) → `9b6d46a`
+  (CD enabled) → `a65f008` (floor-validated 0.05 m/s) → `77375a2` (0.1 m/s).
 
 This is the single source of truth for project state. It replaces
 ad-hoc tracking of Phase C state in session transcripts. Update at the
@@ -24,22 +27,29 @@ brake firmware experiment was reverted with full forensics committed
 
 ## Active Work
 
-**Counter-drive firmware (deferred 2026-04-20, Phase 0.5c).** Session handoff
-at [notes/counter-drive-session-handoff.md](notes/counter-drive-session-handoff.md).
-Phase 0.5a (`TEST_PWM` command) committed as `f2b6877`, tagged
-`pre-counterdrive-code-v1`. Hardware relocation of INA238 from Pi rail to
-motor rail complete, but shunt-current readout broken (shunt reports 0 A
-despite > 50 mA physically flowing, DMM-in-series confirmed). Next session
-must run the DMM-across-shunt test documented in the handoff and diagnose
-hardware-vs-driver before resuming counter-drive implementation.
+No active work in-flight. Counter-drive closed successfully — see next
+section. Next session logical target: first rotation test at 0.05 m/s
+(unblocked now that coast-on is sub-millimetre).
 
 ## Recent Milestones
 
+- **2026-04-21 Counter-drive firmware DELIVERED.** Full design, implementation,
+  bench validation, and floor validation at both 0.05 m/s and 0.1 m/s.
+  Coast reduction **97 %** at 0.05 m/s (13.15 mm → 0.44 mm mean) and
+  **~91 %** at 0.1 m/s (~52 mm KE-scaled baseline → 4.82 mm). Zero FAULT
+  states across all trials. Tags: `pre-counterdrive-code-v2`,
+  `counterdrive-enabled-v1`, `counterdrive-bench-validated-v1`,
+  `pre-counterdrive-bench-v1`, `counterdrive-floor-validated-v1`,
+  `counterdrive-floor-validated-0.1ms-v1`. Full record at
+  [validation/records/2026-04-21-counter-drive-floor.md](validation/records/2026-04-21-counter-drive-floor.md).
+- **2026-04-21 INA238 motor-rail relocation validated on bench.**
+  Multi-input power-selector bypass identified; solved by raising motor
+  battery to 6.3 V. Commit `ae32de3`. Unblocked counter-drive session.
 - **2026-04-20 (counter-drive session, deferred at Phase 0.5c)**
   `TEST_PWM` bench debug command added (commit `f2b6877`, tag
   `pre-counterdrive-code-v1`). INA238 physically relocated to motor
-  rail. Shunt-current readout unresolved — see
-  [notes/counter-drive-session-handoff.md](notes/counter-drive-session-handoff.md).
+  rail. Shunt-current readout unresolved at session close — resolved
+  2026-04-21 with power-selector finding.
 - **2026-04-20** INA238 driver header updated to cite SBOSA20C and
   document DEVICE_ID rev (commit `90ecee5`). Firmware banner bumped
   to 1.3.0 (commit `abba930`). Docs restructured into semantic
@@ -88,25 +98,21 @@ hardware-vs-driver before resuming counter-drive implementation.
 - [x] Docs restructure + session knowledge migration
 - [x] Package and firmware READMEs
 - [x] Firmware version bump convention codified (1.2.0 → 1.3.0)
+- [x] **INA238 motor-rail validation** (multi-input power-selector finding)
+- [x] **Active counter-drive firmware** — 5-state per-motor FSM with shared
+      abort, HW watchdog, encoder-gated termination, 15 % PWM cap. Floor-
+      validated at 0.05 m/s (coast 0.44 mm) and 0.1 m/s (coast 4.82 mm).
+- [x] **Higher-speed motion test at 0.1 m/s** — Phase 6, 5 trials, clean pass
 
 ### Open — High Priority
 
-- [ ] **INA238 motor-rail shunt diagnosis** — BLOCKS counter-drive.
-      Run DMM-across-shunt test in
-      [notes/counter-drive-session-handoff.md](notes/counter-drive-session-handoff.md)
-      §"Diagnostic test pending". Based on reading, either replace
-      Adafruit INA238 breakout (hardware short hypothesis) or fix
-      driver SHUNT_CAL handling (driver calibration hypothesis).
-- [ ] **Active counter-drive firmware** — replaces the ineffective
-      regen-brake concept. Unblocks higher-speed motion and rotation
-      tests because coast-on at 0.05 m/s is already 17 mm. See
-      [notes/brake-attempt-forensic.md](notes/brake-attempt-forensic.md)
-      for what was tried and why it failed, and
-      [notes/counter-drive-session-handoff.md](notes/counter-drive-session-handoff.md)
-      for the design locked in the 2026-04-20 deferred session.
-- [ ] **Higher-speed motion test** (0.2–0.3 m/s, 0.3 m drive). Depends
-      on counter-drive being good enough to control the coast-on
-      envelope at higher speeds.
+- [ ] **First rotation test at 0.05 m/s** — unblocked now that coast-on
+      is sub-millimetre. Start with in-place 90° rotation, measure odom
+      yaw drift vs physical angle using tape/protractor at two ends of
+      the chassis.
+- [ ] **Higher-speed motion test beyond 0.1 m/s** (0.2, 0.3 m/s). Current
+      firmware CD parameters are conservative; may need to raise PWM cap
+      or rebalance debounce for higher speeds.
 
 ### Open — Medium Priority
 
@@ -127,8 +133,23 @@ hardware-vs-driver before resuming counter-drive implementation.
       [hardware/pi-rebuild.md](hardware/pi-rebuild.md) bug #5.
 - [ ] **URDF `wheel_offset_y` 0.08 → 0.09** and firmware
       `WHEEL_SEPARATION_M` alignment.
-- [ ] **First rotation test** — blocked on counter-drive (open-loop
-      rotation at creep speed coasts too far to read usefully).
+- [ ] **Pi-side CDRIVE telemetry parsing.** `navbot_serial_bridge`
+      currently logs `WARN: unknown serial record: CDRIVE …` for every
+      CD telemetry line. Add parsing + publish `/base/counter_drive_state`
+      (std_msgs/String JSON-ified) per Phase 1 design plan. Not on safety
+      path; forensic convenience.
+- [ ] **Nav2 lifecycle auto-activation with LiDAR off.** When LiDAR
+      power is off for bench-level testing, `lifecycle_manager_navigation`
+      leaves `behavior_server`, `collision_monitor`, and `velocity_smoother`
+      inactive (waiting on `/scan` or similar). Manual activation workaround
+      is documented in [RUNBOOK.md](RUNBOOK.md). Fix is either (a) adjust
+      Nav2 config to not block activation on `/scan` presence, or (b)
+      document as permanent operator step for LiDAR-off sessions.
+- [ ] **`scripts/launch_nav.sh` `set -u` bug.** The script's `set -euo
+      pipefail` clashes with Jazzy's `setup.bash` which references
+      `AMENT_TRACE_SETUP_FILES` before checking if it's set. Same
+      workaround pattern as `setup-pi.sh` `configure_kernel_tuning()`.
+      Fixed in Phase 7 commit.
 
 ### Open — Lower Priority
 

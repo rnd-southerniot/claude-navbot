@@ -77,23 +77,73 @@ The currently-effective levers on coast-on are:
    [../notes/brake-attempt-forensic.md](../notes/brake-attempt-forensic.md)).
 3. Tighter `velocity_smoother` window (currently minor contribution).
 
-Counter-drive is the path being actively pursued.
+Counter-drive is the path being actively pursued. **Result: validated 2026-04-21
+— see next section.**
+
+## Counter-Drive Validation (2026-04-21)
+
+Firmware active counter-drive implemented at commit `5185130` (FSM,
+disabled), activated at commit `9b6d46a`, floor-validated at commits
+`a65f008` (0.05 m/s) and `77375a2` (0.1 m/s). Full details in
+[../validation/records/2026-04-21-counter-drive-floor.md](../validation/records/2026-04-21-counter-drive-floor.md).
+
+### Design summary
+
+- Per-motor 5-state FSM: IDLE → NORMAL → DECEL_MON → ACTIVE → (IDLE | FAULT)
+- Triggered by cmd_vel transition to zero + 50 ms debounce + measured
+  \|v\| ≥ 20 mm/s
+- 15% reverse PWM applied during ACTIVE
+- Encoder-gated termination: |v| < 6 mm/s for 3 consecutive 10 ms ticks
+- HW watchdog alarm (RP2040 default alarm pool) caps pulse at 200 ms
+- Shared abort: any motor FAULT cuts PWM on both motors
+- No firmware current-fault check (Pi-side INA238 at 2 Hz is too slow);
+  safety bounded by PWM cap + watchdog + encoder gating + shared abort
+
+### Measured results (drive_on_heading, 5 trials each)
+
+| Configuration | Commanded | Action-done | Physical tape | Coast mean | Coast stdev | Peak current |
+|---|---|---|---|---|---|---|
+| CD-off, 0.05 m/s | 100 mm | ~101 mm | ~115 mm | **13.15 mm** | 4.38 mm | ~155 mA |
+| CD-on, 0.05 m/s | 100 mm | ~101 mm | ~101 mm | **0.44 mm** | 0.49 mm | ~155 mA |
+| CD-on, 0.10 m/s | 300 mm | ~306 mm | ~311 mm | **4.82 mm** | 0.95 mm | ~280 mA |
+
+**Reductions:** 97 % at 0.05 m/s, ~91 % at 0.1 m/s (vs KE-scaled baseline
+expectation ~52 mm). Zero FAULT states across 15 trials total.
+
+### Parameter origins
+
+- `COUNTER_DRIVE_PWM_MAX = 150` (15 % of `MOTOR_PWM_WRAP=999`) — conservative
+  initial cap; bench data showed motor stall current at 50 % PWM locked
+  rotor ≈ 150 mA, giving ≫ 5× headroom to MX1508's 1 A continuous rating
+- `COUNTER_DRIVE_V_STOP_MMS = 6` — raised from originally-designed 2 mm/s
+  because 100 Hz control loop + 3943 CPR encoder gives single-count noise
+  floor at ~5 mm/s
+- `COUNTER_DRIVE_MAX_DURATION_MS = 200` — HW watchdog envelope, observed
+  actual pulses terminate encoder-gated in < 150 ms
+- `COUNTER_DRIVE_DEBOUNCE_TICKS = 5` (= 50 ms) — debounce ensures command
+  chatter (cmd_vel oscillating around 0) doesn't trigger spurious pulses
 
 ## Current speed envelope
 
 | Speed | Status |
 |---|---|
-| 0.05 m/s | Validated (this test) |
-| ≥ 0.10 m/s | Not yet tested |
-| Rotation | Not yet tested |
-| Nav2 goals | Blocked on rotation test |
-
-First rotation test is the next planned motion test (tracked in
-[../project-status.md](../project-status.md) backlog).
+| 0.05 m/s straight | **Validated** (Phase 5) — CD on, coast 0.44 ± 0.49 mm |
+| 0.10 m/s straight | **Validated** (Phase 6) — CD on, coast 4.82 ± 0.95 mm |
+| > 0.10 m/s | Not tested |
+| Rotation at any speed | Not yet tested — next logical step |
+| Nav2 goals | Unblocked by CD; can proceed |
 
 ## Related records
 
+- Counter-drive floor validation (both speeds):
+  [../validation/records/2026-04-21-counter-drive-floor.md](../validation/records/2026-04-21-counter-drive-floor.md)
+- INA238 bench validation (unblocked CD work):
+  [ina238-bench-validation.md](ina238-bench-validation.md)
+- Counter-drive prior session handoff (historical; deferred at Phase 0.7):
+  [../notes/counter-drive-session-handoff.md](../notes/counter-drive-session-handoff.md)
 - Pre-wipe kinematic calibration:
   [../validation/records/2026-04-19-pre-wipe-calibration.md](../validation/records/2026-04-19-pre-wipe-calibration.md)
 - Pre-Pi-rebuild DWB rotation-only diagnosis session:
   [../validation/records/2026-04-18-dwb-rotation-session.md](../validation/records/2026-04-18-dwb-rotation-session.md)
+- Brake-attempt forensic (precursor to counter-drive):
+  [../notes/brake-attempt-forensic.md](../notes/brake-attempt-forensic.md)

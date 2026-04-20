@@ -380,3 +380,51 @@ journalctl -k --since "10 min ago" --no-pager | grep -Ei "under.?voltage|voltage
 ```
 
 Do not continue broader motion or SLAM on an unstable supply path.
+
+### Nav2 lifecycle stuck in `inactive` with LiDAR off
+
+When running Nav2 (`scripts/launch_nav.sh`) with **LiDAR power off** for
+bench-level testing, `lifecycle_manager_navigation` does not auto-activate
+all downstream nodes. `behavior_server`, `collision_monitor`, and
+`velocity_smoother` will report `inactive [2]` and `drive_on_heading`
+goals will be rejected.
+
+Check lifecycle states:
+
+```bash
+for n in behavior_server collision_monitor velocity_smoother controller_server planner_server bt_navigator smoother_server; do
+  echo "  /$n -> $(ros2 lifecycle get /$n 2>/dev/null)"
+done
+```
+
+If any of the first three are `inactive`, manually activate:
+
+```bash
+ros2 lifecycle set /velocity_smoother activate
+ros2 lifecycle set /collision_monitor activate
+ros2 lifecycle set /behavior_server activate
+```
+
+These transition directly to `active [3]` and the full Nav2 action API
+(including `drive_on_heading`) becomes available.
+
+This workaround is needed every time Nav2 is restarted while LiDAR is
+powered off. Tracked as an open item in
+[project-status.md](project-status.md); permanent fix is either adjusting
+the Nav2 lifecycle config to not block on `/scan` or documenting as
+permanent LiDAR-off bench procedure.
+
+### Counter-drive FAULT recovery
+
+If CDRIVE telemetry shows `l_state=4` or `r_state=4` (FAULT) or any
+non-zero `_fault` field, recovery is:
+
+```text
+STOP\n
+```
+
+over serial (or any equivalent CMD_STOP invocation). This invokes
+`counter_drive_reset()` on both motors: states return to IDLE (0),
+`last_fault` clears, the watchdog alarm disarms, and `shared_abort` is
+released iff both motors are non-FAULT. `RESET\n` works similarly and
+additionally clears a latched safety fault (ESTOP / STALL / RUN_TIMEOUT).
