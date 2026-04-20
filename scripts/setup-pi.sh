@@ -18,11 +18,24 @@
 #   - udev rules for Xbox / PlayStation / generic gamepads
 #   - User in dialout, i2c, gpio, input groups
 #   - I2C-1 bus enabled for IMU and INA238
+#   - Optional: static IP via netplan (opt-in: NAVBOT_CONFIGURE_STATIC_IP=1)
 #
 # Usage:
 #   curl -sL <repo>/scripts/setup-pi.sh | bash
 #   OR (recommended, after git clone):
 #   cd ~/projects/claude-navbot && bash scripts/setup-pi.sh
+#
+# Optional environment variables (static-IP step — all unset by default):
+#   NAVBOT_CONFIGURE_STATIC_IP  Set to 1 to enable the static-IP step.
+#                               Unset/empty: step is skipped (safe for re-runs).
+#   NAVBOT_STATIC_IP            CIDR form, default 192.168.68.101/24
+#   NAVBOT_GATEWAY              Default 192.168.68.1
+#   NAVBOT_DNS                  Comma-separated, default 192.168.68.1,1.1.1.1
+#   NAVBOT_WIFI_SSID            WiFi SSID. If set together with password,
+#                               script configures a wireless interface too.
+#   NAVBOT_WIFI_PASSWORD        WiFi WPA/WPA2 password.
+#   NAVBOT_NET_IFACE            Force specific ethernet interface name
+#                               (else auto-detected from default route).
 #
 # Requirements:
 #   Ubuntu 24.04 arm64 server, fresh install
@@ -608,6 +621,133 @@ EOF
     log_info "  kernel buffers: rmem_max=16MB, wmem_max=16MB applied"
 }
 
+# ---------- Step 11.6: Optional static IP via netplan ------------------------
+#
+# Opt-in via NAVBOT_CONFIGURE_STATIC_IP=1. When opted in, writes
+# /etc/netplan/99-navbot-static.yaml and disables cloud-init network
+# regeneration. All other parameters default to values validated on the
+# navbot lab Pi (192.168.68.101 on the 192.168.68.0/24 subnet).
+#
+# ROLLBACK (SSH still possible):
+#   sudo rm /etc/netplan/99-navbot-static.yaml
+#   sudo rm /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+#   sudo netplan apply
+#
+# ROLLBACK (SSH lost — needs physical console):
+#   Same commands, via attached keyboard/monitor.
+#
+configure_static_ip() {
+    if [[ "${NAVBOT_CONFIGURE_STATIC_IP:-}" != "1" ]]; then
+        step_header "11.6" "Static IP (skipped — NAVBOT_CONFIGURE_STATIC_IP not set)"
+        log_info "Re-run with NAVBOT_CONFIGURE_STATIC_IP=1 to configure static IP"
+        return 0
+    fi
+
+    step_header "11.6" "Static IP via netplan"
+
+    local static_ip="${NAVBOT_STATIC_IP:-192.168.68.101/24}"
+    local gateway="${NAVBOT_GATEWAY:-192.168.68.1}"
+    local dns_csv="${NAVBOT_DNS:-192.168.68.1,1.1.1.1}"
+    local wifi_ssid="${NAVBOT_WIFI_SSID:-}"
+    local wifi_pass="${NAVBOT_WIFI_PASSWORD:-}"
+    local forced_iface="${NAVBOT_NET_IFACE:-}"
+
+    # Detect primary interface from current default route
+    local iface
+    if [[ -n "$forced_iface" ]]; then
+        iface="$forced_iface"
+    else
+        iface=$(ip -4 route show default 2>/dev/null | awk '/default/ {print $5; exit}')
+    fi
+    if [[ -z "$iface" ]]; then
+        log_error "Cannot detect default-route interface. Set NAVBOT_NET_IFACE=ethX."
+        return 3
+    fi
+    log_info "Target interface: $iface"
+    log_info "Target static IP: $static_ip  gateway: $gateway  dns: $dns_csv"
+
+    # Convert DNS CSV to space-padded comma list for YAML
+    local dns_yaml
+    dns_yaml=$(echo "$dns_csv" | awk -F, '{for(i=1;i<=NF;i++){printf "%s%s",(i>1?", ":""),$i}}')
+
+    # Build target netplan YAML
+    local netplan_file="/etc/netplan/99-navbot-static.yaml"
+    local tmp_yaml
+    tmp_yaml=$(mktemp)
+
+    {
+        echo "# Managed by scripts/setup-pi.sh — do not edit manually"
+        echo "# Rollback: sudo rm ${netplan_file} && sudo netplan apply"
+        echo "network:"
+        echo "  version: 2"
+        echo "  ethernets:"
+        echo "    ${iface}:"
+        echo "      dhcp4: no"
+        echo "      addresses: [${static_ip}]"
+        echo "      routes:"
+        echo "        - to: default"
+        echo "          via: ${gateway}"
+        echo "      nameservers:"
+        echo "        addresses: [${dns_yaml}]"
+        if [[ -n "$wifi_ssid" && -n "$wifi_pass" ]]; then
+            local wifi_iface
+            wifi_iface=$(iw dev 2>/dev/null | awk '/Interface/ {print $2; exit}')
+            if [[ -n "$wifi_iface" ]]; then
+                echo "  wifis:"
+                echo "    ${wifi_iface}:"
+                echo "      dhcp4: no"
+                echo "      addresses: [${static_ip}]"
+                echo "      access-points:"
+                echo "        \"${wifi_ssid}\":"
+                echo "          password: \"${wifi_pass}\""
+                echo "      routes:"
+                echo "        - to: default"
+                echo "          via: ${gateway}"
+                echo "      nameservers:"
+                echo "        addresses: [${dns_yaml}]"
+            else
+                log_warn "WiFi env vars set but no wireless interface detected — skipping WiFi stanza"
+            fi
+        fi
+    } > "$tmp_yaml"
+
+    # Idempotency: skip if target file already matches
+    if [[ -f "$netplan_file" ]] && diff -q "$tmp_yaml" "$netplan_file" >/dev/null 2>&1; then
+        log_ok "Netplan config already matches target — skipping"
+        rm -f "$tmp_yaml"
+    else
+        sudo cp "$tmp_yaml" "$netplan_file"
+        sudo chmod 600 "$netplan_file"
+        rm -f "$tmp_yaml"
+        log_ok "Wrote $netplan_file"
+
+        # Use `netplan try` when running interactively so a mistake auto-
+        # rolls-back after 120s. Non-interactive runs fall back to apply
+        # with an explicit warning.
+        if [[ -t 0 ]]; then
+            log_info "Running 'sudo netplan try' (120s rollback timer — press ENTER to accept)"
+            sudo netplan try --timeout 120 || {
+                log_error "netplan try rejected or timed out — config rolled back"
+                return 3
+            }
+        else
+            log_warn "Non-interactive shell — running 'netplan apply' without rollback timer"
+            log_warn "If SSH hangs, the new config is active and you must console in to fix"
+            sudo netplan apply
+        fi
+        log_ok "Netplan applied"
+    fi
+
+    # Disable cloud-init network regeneration
+    local cloud_cfg="/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg"
+    if [[ -f "$cloud_cfg" ]] && grep -q 'config: disabled' "$cloud_cfg" 2>/dev/null; then
+        log_ok "cloud-init network regen already disabled"
+    else
+        echo 'network: {config: disabled}' | sudo tee "$cloud_cfg" > /dev/null
+        log_ok "Disabled cloud-init network regeneration at $cloud_cfg"
+    fi
+}
+
 # ---------- Step 12: Summary -------------------------------------------------
 
 print_summary() {
@@ -711,6 +851,7 @@ main() {
     setup_workspace_dir
     install_external_sources
     configure_kernel_tuning || { log_error "kernel tuning failed"; exit 1; }
+    configure_static_ip    || { log_error "static-ip step failed"; exit 1; }
     print_summary
 
     exit 0
