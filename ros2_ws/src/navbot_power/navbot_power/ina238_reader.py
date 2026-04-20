@@ -1,3 +1,41 @@
+"""INA238 driver for the Navbot Pi 5 power rail monitor.
+
+Hardware: Adafruit INA238 breakout (STEMMA QT), 15 mOhm shunt on-board.
+I2C address: 0x40 (configurable via A0/A1 jumpers).
+Bus: I2C bus 1 on Raspberry Pi 5.
+
+Datasheet reference: TI SBOSA20C (INA237, February 2021, revised 2024).
+    NOTE: INA237 and INA238 are register-identical. Only gain error and
+    offset specs differ; this driver works for both parts.
+
+Register map highlights (SBOSA20C):
+    0x00  CONFIG        RW  (default 0x0000)
+    0x01  ADC_CONFIG    RW  (default 0xFB68 -- continuous all, 1052 us, avg=1)
+    0x02  SHUNT_CAL     RW  (default 0x1000; CURRENT=0, POWER=0 when 0)
+    0x04  VSHUNT        RO  (5 uV or 1.25 uV / LSB per ADCRANGE, two's compl.)
+    0x05  VBUS          RO  (3.125 mV / LSB, positive only)
+    0x06  DIETEMP       RO  (125 m degC / LSB, two's complement)
+    0x07  CURRENT       RO  (CURRENT_LSB, computed from SHUNT_CAL)
+    0x08  POWER         RO  (24-bit, 0.2 * CURRENT_LSB / LSB)
+    0x0B  DIAG_ALRT     RW  (default 0x0001)
+    0x3E  MANUFACTURER_ID  RO  (0x5449 = 'TI' ASCII)
+    0x3F  DEVICE_ID        RO  (DIEID 0x23 in upper byte; rev in lower byte.
+                                 Our chip reads 0x2380. Register is present
+                                 in SBOSA20C but NOT documented in the older
+                                 SBOSA20A revision -- this gap caused
+                                 confusion during Phase C driver debugging.)
+
+Deployment context: this chip monitors System 1 (Pi compute rail) only.
+See docs/power-architecture.md for full robot power architecture, including
+the important caveat that the Pi 5 GPIO 5V pin is NOT isolated from the
+battery rail when the Pi is on USB-C wall power (0.94 A measured through
+the INA238 shunt with Pi on wall adapter, 2026-04-20).
+
+Driver state as of commit b309625: production. Publish rate: 2 Hz.
+Topics: /power/ina238/{bus_voltage_v, current_a, power_w, temperature_c,
+                        shunt_voltage_v, status}.
+"""
+
 import json
 import math
 from dataclasses import dataclass
