@@ -37,6 +37,26 @@ The baseline repo had conflicting left/right naming between docs and pin aliases
 - 100 Hz control loop
 - 10 Hz telemetry
 
+## Firmware Version Banner
+
+`FIRMWARE_VERSION` is defined in `include/navbot_protocol.h` and shipped
+in the `ACK PING <version>` reply so an operator can read the running
+firmware over serial without flashing.
+
+**Convention (established 2026-04):** bump the version on **every
+experiment-and-revert cycle**, not only on net functional changes. This
+gives a unit's `ACK PING` reply clear provenance for which post-freeze
+iteration is running, even when a cycle ends with no behavioral delta.
+
+- `v1.2.0` is the tagged validation-freeze release
+  (`v1.2.0-validation-freeze`, recorded in
+  [../../docs/validation/records/2026-04-13-record.md](../../docs/validation/records/2026-04-13-record.md)).
+- `v1.3.0` is the current source version. Covers: brake patch
+  experiment (attempted, reverted — see
+  [../../docs/notes/brake-attempt-forensic.md](../../docs/notes/brake-attempt-forensic.md))
+  and the INA238 session (no firmware source changes, but procedural
+  bump per convention).
+
 ## Runtime Safety Behavior
 
 - `ESTOP` remains latched until `RESET` succeeds with the estop input released.
@@ -111,3 +131,12 @@ Minimum pass criteria:
 - `ESTOP` latches a stop and `RESET` clears only after the estop input is released.
 
 Use `tools/manual_serial_check.py` for deeper serial inspection. Keep the firmware text protocol human-readable for bench diagnostics.
+
+## Related Docs
+
+- Flashing procedure: [FLASHING.md](FLASHING.md)
+- System architecture (Pi ↔ RP2040 split): [../../docs/architecture/system.md](../../docs/architecture/system.md)
+- Runbook (pre-flight + incident response): [../../docs/RUNBOOK.md](../../docs/RUNBOOK.md)
+- Brake experiment forensic (archived): [../../docs/notes/brake-attempt-forensic.md](../../docs/notes/brake-attempt-forensic.md)
+- Motion test results (firmware validation): [../../docs/testing/motion-tests.md](../../docs/testing/motion-tests.md)
+- Project status (firmware backlog items): [../../docs/project-status.md](../../docs/project-status.md)
