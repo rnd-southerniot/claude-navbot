@@ -1,9 +1,9 @@
 # Navbot Project Status
 
-**Last updated:** 2026-04-20
+**Last updated:** 2026-04-20 (counter-drive session handoff)
 **Branch:** `navbot-experimental`
-**HEAD at update time:** `78c9cfe`
-**Firmware version:** `1.3.0` (source); `1.2.0` last-flashed validation freeze
+**HEAD at update time:** `f2b6877` (TEST_PWM bench command; counter-drive session deferred)
+**Firmware version:** `1.3.0` (source with TEST_PWM enabled); `1.2.0` last-flashed validation freeze
   (see [validation/records/2026-04-13-record.md](validation/records/2026-04-13-record.md)).
 
 This is the single source of truth for project state. It replaces
@@ -24,11 +24,22 @@ brake firmware experiment was reverted with full forensics committed
 
 ## Active Work
 
-No active work in-flight as of this update. Next session will begin
-from this file's backlog sections.
+**Counter-drive firmware (deferred 2026-04-20, Phase 0.5c).** Session handoff
+at [notes/counter-drive-session-handoff.md](notes/counter-drive-session-handoff.md).
+Phase 0.5a (`TEST_PWM` command) committed as `f2b6877`, tagged
+`pre-counterdrive-code-v1`. Hardware relocation of INA238 from Pi rail to
+motor rail complete, but shunt-current readout broken (shunt reports 0 A
+despite > 50 mA physically flowing, DMM-in-series confirmed). Next session
+must run the DMM-across-shunt test documented in the handoff and diagnose
+hardware-vs-driver before resuming counter-drive implementation.
 
 ## Recent Milestones
 
+- **2026-04-20 (counter-drive session, deferred at Phase 0.5c)**
+  `TEST_PWM` bench debug command added (commit `f2b6877`, tag
+  `pre-counterdrive-code-v1`). INA238 physically relocated to motor
+  rail. Shunt-current readout unresolved — see
+  [notes/counter-drive-session-handoff.md](notes/counter-drive-session-handoff.md).
 - **2026-04-20** INA238 driver header updated to cite SBOSA20C and
   document DEVICE_ID rev (commit `90ecee5`). Firmware banner bumped
   to 1.3.0 (commit `abba930`). Docs restructured into semantic
@@ -80,20 +91,35 @@ from this file's backlog sections.
 
 ### Open — High Priority
 
+- [ ] **INA238 motor-rail shunt diagnosis** — BLOCKS counter-drive.
+      Run DMM-across-shunt test in
+      [notes/counter-drive-session-handoff.md](notes/counter-drive-session-handoff.md)
+      §"Diagnostic test pending". Based on reading, either replace
+      Adafruit INA238 breakout (hardware short hypothesis) or fix
+      driver SHUNT_CAL handling (driver calibration hypothesis).
 - [ ] **Active counter-drive firmware** — replaces the ineffective
       regen-brake concept. Unblocks higher-speed motion and rotation
       tests because coast-on at 0.05 m/s is already 17 mm. See
       [notes/brake-attempt-forensic.md](notes/brake-attempt-forensic.md)
-      for what was tried and why it failed.
+      for what was tried and why it failed, and
+      [notes/counter-drive-session-handoff.md](notes/counter-drive-session-handoff.md)
+      for the design locked in the 2026-04-20 deferred session.
 - [ ] **Higher-speed motion test** (0.2–0.3 m/s, 0.3 m drive). Depends
       on counter-drive being good enough to control the coast-on
       envelope at higher speeds.
 
 ### Open — Medium Priority
 
-- [ ] **`/base/motor_voltage` rail-scaling "C7 bug"** — firmware fix.
-      Topic currently reads ~5.13 V (rail-scaled) rather than true
-      battery voltage. Not a rail fault; a firmware arithmetic error.
+- [ ] **`/base/motor_voltage` topic now unreliable.** The GP27 ADC
+      divider was physically disconnected during the 2026-04-20 INA238
+      relocation. Topic currently reports ~0 V. Either restore the
+      divider or deprecate the topic in favour of
+      `/power/ina238/bus_voltage_v` (once INA238 motor-rail shunt
+      diagnosis is resolved). Supersedes the earlier "C7 bug" item.
+- [ ] **Pi-rail INA238 now absent** — the existing chip was relocated
+      to the motor rail, so System 1 (Pi compute rail) currently has
+      no current monitoring. A second INA238 (or restoration of this
+      one after counter-drive work) is the medium-term fix.
 - [ ] **Firmware `wheel_radius` 0.033f vs URDF 0.0325 alignment** —
       the URDF was corrected to `0.0325 m` (commit `1952f6a`), but
       firmware source still hard-codes `0.033f`. Current ~1.5% odom
@@ -103,9 +129,6 @@ from this file's backlog sections.
       `WHEEL_SEPARATION_M` alignment.
 - [ ] **First rotation test** — blocked on counter-drive (open-loop
       rotation at creep speed coasts too far to read usefully).
-- [ ] **Second INA238 on motor rail** — for counter-drive current
-      monitoring. Placement options (high-side vs low-side) discussed
-      in [power-architecture.md](power-architecture.md#future-motor-rail-current-monitoring).
 
 ### Open — Lower Priority
 
