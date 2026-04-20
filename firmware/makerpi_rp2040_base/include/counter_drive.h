@@ -37,7 +37,7 @@
  */
 
 #ifndef COUNTER_DRIVE_ENABLED
-#define COUNTER_DRIVE_ENABLED 0
+#define COUNTER_DRIVE_ENABLED 1
 #endif
 
 /* --- Tunables (hard-coded; see Phase 1 design review 2026-04-20) ------ */

@@ -68,6 +68,14 @@ void navbot_telemetry_cdrive(uint32_t stamp_ms, const cd_motor_t *left, const cd
      * dur_ms: ms elapsed in ACTIVE (0 otherwise)
      * fault : 0=none 1=watchdog 2=anomaly 3=shared_abort
      *
+     * RECOVERY from CD_STATE_FAULT (l_state==4 OR r_state==4):
+     *   Send "STOP\n" over serial. counter_drive_reset() is invoked
+     *   for both motors: cd_state returns to IDLE (0), last_fault
+     *   clears to 0, watchdog alarm is disarmed, and shared_abort is
+     *   dropped iff both motors are non-FAULT. "RESET\n" works the
+     *   same way and additionally clears a latched safety fault
+     *   (ESTOP / STALL / RUN_TIMEOUT).
+     *
      * Emitted at the telemetry interval; this is observational only,
      * not on the safety path.
      */
