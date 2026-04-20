@@ -18,6 +18,17 @@
 #include "telemetry.h"
 #include "wheel.h"
 
+/*
+ * Bench-only TEST_PWM command. Set to 1 to accept the command; 0 to
+ * compile it out (parser still accepts syntactically; handler replies
+ * with an ERR). Default-on during counter-drive development sessions.
+ */
+#ifndef TEST_PWM_ENABLED
+#define TEST_PWM_ENABLED 1
+#endif
+#define TEST_PWM_DURATION_MS 1000
+#define TEST_PWM_DUTY_MAX    999
+
 typedef enum {
     CONTROL_IDLE = 0,
     CONTROL_CMD_VEL,
@@ -323,6 +334,69 @@ static void handle_command(const navbot_command_t *command, uint32_t stamp_ms) {
             apply_wheel_targets_mps(command->value_1, command->value_2, CONTROL_WHEEL_VEL, stamp_ms);
             navbot_telemetry_ack(command->type);
             break;
+
+        case NAVBOT_CMD_TEST_PWM: {
+#if TEST_PWM_ENABLED
+            if (safety_is_faulted()) {
+                navbot_telemetry_error("FAULT", safety_fault_name(safety_get_fault()));
+                break;
+            }
+            if (!isfinite(command->value_1) || !isfinite(command->value_2)) {
+                navbot_telemetry_error("BAD_ARGS", "non_finite_duty");
+                break;
+            }
+            float left_f  = command->value_1;
+            float right_f = command->value_2;
+            if (absf_local(left_f)  > (float)TEST_PWM_DUTY_MAX ||
+                absf_local(right_f) > (float)TEST_PWM_DUTY_MAX) {
+                navbot_telemetry_error("LIMIT", "test_pwm_duty_out_of_range");
+                break;
+            }
+            int16_t left_duty  = (int16_t)left_f;
+            int16_t right_duty = (int16_t)right_f;
+
+            /*
+             * Cancel any active motion, force both wheels into IDLE so
+             * wheel_tick() will not touch PWM, and flush motion-timeout
+             * state so handle_motion_timeout() does not fire mid-pulse.
+             */
+            wheel_stop(&left_wheel);
+            wheel_stop(&right_wheel);
+            clear_motion_active(CONTROL_IDLE);
+
+            wheel_apply_test_pwm(&left_wheel,  left_duty);
+            wheel_apply_test_pwm(&right_wheel, right_duty);
+
+            /*
+             * Blocking wait. The outer main loop is stalled, so we pet
+             * the HW watchdog (200 ms) and drain encoder PIO FIFOs
+             * manually every 50 ms.
+             */
+            uint32_t start_ms = now_ms();
+            while ((now_ms() - start_ms) < TEST_PWM_DURATION_MS) {
+                watchdog_update();
+                poll_encoders();
+
+                /*
+                 * Respect a fault (e.g. ESTOP IRQ) fired mid-pulse by
+                 * re-asserting coast immediately and exiting early.
+                 * wheel_motor_set() inside wheel_apply_test_pwm already
+                 * coasts on fault, but we still break out of the wait.
+                 */
+                if (safety_is_faulted()) {
+                    break;
+                }
+                sleep_ms(50);
+            }
+
+            wheel_apply_test_pwm(&left_wheel,  0);
+            wheel_apply_test_pwm(&right_wheel, 0);
+            navbot_telemetry_ack(command->type);
+#else
+            navbot_telemetry_error("DISABLED", "test_pwm_not_compiled_in");
+#endif
+            break;
+        }
 
         default:
             navbot_telemetry_error("BAD_CMD", "unsupported_command");
