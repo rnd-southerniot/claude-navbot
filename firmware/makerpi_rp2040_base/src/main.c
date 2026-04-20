@@ -11,6 +11,7 @@
 #include "pico/stdio_usb.h"
 
 #include "config.h"
+#include "counter_drive.h"
 #include "navbot_protocol.h"
 #include "pins.h"
 #include "safety.h"
@@ -38,6 +39,8 @@ typedef enum {
 
 static wheel_t left_wheel;
 static wheel_t right_wheel;
+static cd_motor_t cd_left;
+static cd_motor_t cd_right;
 static control_mode_t control_mode = CONTROL_IDLE;
 
 static char cmd_buf[NAVBOT_PROTOCOL_MAX_LINE];
@@ -129,6 +132,17 @@ static void stop_all(void) {
     wheel_stop(&right_wheel);
 }
 
+/*
+ * Reset counter-drive FSM on both motors. Called from STOP / RESET /
+ * ESTOP handlers and from control_step()'s fault-entry paths so any
+ * latched CD state (including armed watchdog alarms) is cleaned up.
+ * Idempotent -- calling on already-IDLE motors is a no-op.
+ */
+static void reset_counter_drive_both(void) {
+    counter_drive_reset(&cd_left);
+    counter_drive_reset(&cd_right);
+}
+
 static float absf_local(float value) {
     return value < 0.0f ? -value : value;
 }
@@ -202,6 +216,7 @@ static const char *fault_name(void) {
 static void publish_telemetry(uint32_t stamp_ms) {
     navbot_telemetry_state(mode_name(), fault_name());
     navbot_telemetry_odom(stamp_ms, &left_wheel, &right_wheel);
+    navbot_telemetry_cdrive(stamp_ms, &cd_left, &cd_right);
 }
 
 static void publish_periodic_telemetry(uint32_t stamp_ms) {
@@ -281,6 +296,7 @@ static void handle_command(const navbot_command_t *command, uint32_t stamp_ms) {
 
         case NAVBOT_CMD_STOP:
             stop_all();
+            reset_counter_drive_both();
             clear_motion_active(CONTROL_IDLE);
             navbot_telemetry_ack(command->type);
             break;
@@ -291,12 +307,14 @@ static void handle_command(const navbot_command_t *command, uint32_t stamp_ms) {
                 break;
             }
             stop_all();
+            reset_counter_drive_both();
             clear_motion_active(CONTROL_IDLE);
             navbot_telemetry_ack(command->type);
             break;
 
         case NAVBOT_CMD_ESTOP:
             stop_all();
+            reset_counter_drive_both();
             clear_motion_active(CONTROL_IDLE);
             safety_set_fault(SAFETY_ESTOP);
             navbot_telemetry_ack(command->type);
@@ -409,6 +427,7 @@ static void control_step(float dt, uint32_t stamp_ms) {
 
     if (safety_is_faulted()) {
         stop_all();
+        reset_counter_drive_both();
         clear_motion_active(CONTROL_IDLE);
         safety_tick(stamp_ms, false);
         publish_periodic_telemetry(stamp_ms);
@@ -421,8 +440,15 @@ static void control_step(float dt, uint32_t stamp_ms) {
 
     if (left_stall || right_stall) {
         stop_all();
+        reset_counter_drive_both();
         clear_motion_active(CONTROL_IDLE);
         safety_set_fault(SAFETY_STALL);
+    } else {
+        /* Counter-drive runs AFTER wheel_tick so we see fresh
+         * speed_filtered and won't fight WMODE_SPEED PWM writes. CD
+         * only takes PWM ownership when wheel->mode == WMODE_IDLE. */
+        counter_drive_tick(&cd_left);
+        counter_drive_tick(&cd_right);
     }
 
     safety_tick(stamp_ms, wheel_is_active(&left_wheel) || wheel_is_active(&right_wheel));
@@ -470,6 +496,12 @@ int main(void) {
         RIGHT_WHEEL_RADIUS_M,
         RIGHT_WHEEL_SWAP_DIR
     );
+
+    /* Counter-drive FSMs. Safe whether COUNTER_DRIVE_ENABLED is 0 or 1
+     * -- the tick function no-ops when disabled, but init/reset stay
+     * active so state is consistent across a compile-flag flip. */
+    counter_drive_init(&cd_left,  &left_wheel);
+    counter_drive_init(&cd_right, &right_wheel);
 
     last_telem_ms = now_ms();
     publish_telemetry(last_telem_ms);
