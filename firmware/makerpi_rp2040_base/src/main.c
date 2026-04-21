@@ -295,8 +295,21 @@ static void handle_command(const navbot_command_t *command, uint32_t stamp_ms) {
             break;
 
         case NAVBOT_CMD_STOP:
+            /*
+             * STOP is a SOFT stop that yields to counter-drive. stop_all()
+             * puts wheels into IDLE mode; on the next control tick the CD
+             * FSM transitions NORMAL -> DECEL_MON -> ACTIVE and applies
+             * its reverse-PWM pulse. Do NOT call reset_counter_drive_both()
+             * here -- that would short-circuit CD activation (the bug that
+             * made tonight's rotation test show no CD firing because the
+             * Pi-side bridge sends STOP on every cmd_vel=0, beating the
+             * firmware's COMMAND_TIMEOUT_MS race).
+             *
+             * For immediate hard-cut motor stop, use ESTOP, which both
+             * resets CD and latches SAFETY_ESTOP so wheel_motor_set()
+             * forces coast on subsequent ticks.
+             */
             stop_all();
-            reset_counter_drive_both();
             clear_motion_active(CONTROL_IDLE);
             navbot_telemetry_ack(command->type);
             break;
