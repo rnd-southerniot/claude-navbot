@@ -5,7 +5,16 @@
   <xacro:property name="base_height" value="0.06"/>
   <xacro:property name="wheel_radius" value="0.0325"/>
   <xacro:property name="wheel_width" value="0.02"/>
-  <xacro:property name="wheel_offset_y" value="0.08"/>
+  <!--
+    wheel_offset_y sourced from 2026-04-22 empirical 360° rotation
+    calibration: physical ~349° vs odom 353.2° for commanded 360°
+    → true wheel_separation ≈ 0.182 m → offset = 0.091 m.
+    Prior value 0.08 was 12 % short vs truth. See
+    docs/validation/records/2026-04-22-rotation-test.md.
+    Firmware WHEEL_SEPARATION_M and Pi-side YAML wheel_separation
+    remain at 0.180 m (1.2 % low; self-consistent for odom).
+  -->
+  <xacro:property name="wheel_offset_y" value="0.091"/>
   <xacro:property name="wheel_offset_x" value="0.0"/>
   <xacro:property name="laser_height" value="0.12"/>
 
