@@ -1,14 +1,15 @@
 # Navbot Project Status
 
-**Last updated:** 2026-04-22 (first rotation test; STOP/CD bug fix)
+**Last updated:** 2026-04-22 (URDF calibration + first nav-goal attempt, PARTIAL)
 **Branch:** `navbot-experimental`
-**HEAD at update time:** `a445ffe` (STOP handler yields to CD)
+**HEAD at update time:** `55badc6` + Task 4 docs (about to commit)
 **Firmware version:** `1.3.0` with counter-drive + TEST_PWM enabled; last-flashed
   binary on RP2040 is the fix build from commit `a445ffe`.
 **Key milestone commits:**
   `pre-counterdrive-code-v2` → `5185130` (FSM implemented, disabled) → `9b6d46a`
   (CD enabled) → `a65f008` (floor-validated 0.05 m/s) → `77375a2` (0.1 m/s) →
-  `a445ffe` (STOP-CD bug fix, validated by rotation tests in both directions).
+  `a445ffe` (STOP-CD bug fix, rotation validated) → `55badc6` (URDF wheel_offset_y
+  calibrated to 0.091 m from empirical 360° rotation test).
 
 This is the single source of truth for project state. It replaces
 ad-hoc tracking of Phase C state in session transcripts. Update at the
@@ -28,13 +29,28 @@ brake firmware experiment was reverted with full forensics committed
 
 ## Active Work
 
-No active work in-flight. Counter-drive closed successfully (both linear
-and rotation). Next session logical targets: URDF `wheel_offset_y`
-update (empirically justified by 2026-04-22 rotation calibration), Pi
-repo sync + rebuild, Pi-side CDRIVE parser.
+No active work in-flight. First autonomous nav goal attempt completed as
+**PARTIAL**: full Nav2 pipeline is demonstrably wired end-to-end (SLAM,
+DWB, velocity_smoother, collision_monitor, base_bridge, firmware — every
+stage observed publishing/receiving), but DWB is commanding angular
+velocity below the motor's static-friction threshold (~0.075 rad/s
+smoothed → 6.75 mm/s wheel tangential; compare rotation-test working
+speed of 45 mm/s). Full record:
+[validation/records/2026-04-22-first-nav-goal-partial.md](validation/records/2026-04-22-first-nav-goal-partial.md).
 
 ## Recent Milestones
 
+- **2026-04-22 URDF calibration + first nav-goal attempt (PARTIAL).** Task 1
+  applied wheel_offset_y 0.08 → 0.091 m per empirical rotation calibration
+  (commit `55badc6`). Task 2 synced Pi repo from `8cf3319` → `55badc6` and
+  rebuilt 12 packages (13.5 s, zero warnings). Task 3 launched full Nav2
+  stack: SLAM + Nav2 lifecycle auto-activated cleanly with LiDAR on (no
+  manual workaround like 2026-04-21 needed). DWB produces commands,
+  velocity_smoother and collision_monitor propagate, base_bridge receives —
+  **pipeline validated end-to-end**. Robot doesn't move because DWB's
+  commanded velocity (~6.75 mm/s wheel tangential after smoothing) is below
+  the motor's static-friction threshold. Full analysis:
+  [validation/records/2026-04-22-first-nav-goal-partial.md](validation/records/2026-04-22-first-nav-goal-partial.md).
 - **2026-04-22 First rotation test + STOP-handler bug fix.** 17 trials
   across 90°/180°/360° in both directions, all with CD active. Coast
   mean 9.58° at 90° CCW (10.60° CW — 1.11× symmetry), 18.35° at 180°,
@@ -124,15 +140,28 @@ repo sync + rebuild, Pi-side CDRIVE parser.
       `reset_counter_drive_both()`, short-circuiting CD activation when
       the Pi bridge sends STOP on zero cmd_vel. Fix removes the reset
       from STOP; ESTOP/RESET still reset CD.
+- [x] **URDF `wheel_offset_y` 0.08 → 0.091 m** (commit `55badc6`).
+- [x] **Pi repo sync** — Pi now at HEAD `55badc6`, 12 packages rebuilt.
 
 ### Open — High Priority
 
-- [ ] **URDF `wheel_offset_y` 0.08 → 0.091 m.** 2026-04-22 360° rotation
-      calibration showed true wheel_separation ≈ 0.182 m (physical 349°
-      vs odom 353°, vs commanded 360°). Firmware's 0.180 m is 1.2% low —
-      acceptable. URDF's 0.160 m is 12% low — should be corrected. One-
-      line change in
-      [ros2_ws/src/navbot_description/urdf/navbot.urdf.xacro](../ros2_ws/src/navbot_description/urdf/navbot.urdf.xacro).
+- [ ] **Nav2 controller tuning for our motor envelope.** First nav-goal
+      attempt (2026-04-22) showed DWB commanding ~0.075 rad/s angular
+      (after velocity_smoother) = 6.75 mm/s wheel tangential — below the
+      motor's static-friction threshold. Robot doesn't move. Fixes to
+      evaluate:
+      (a) Raise DWB `min_speed_theta`/`min_vel_x` and velocity_smoother
+          `deadband_velocity` to match a measured minimum-reliable
+          velocity (~45 mm/s per rotation tests).
+      (b) Switch from DWB to `RegulatedPurePursuitController`, which has
+          `min_approach_linear_velocity` explicitly tunable.
+      (c) Empirically measure min-reliable wheel velocity via stepped
+          serial `CMD_VEL` tests.
+      Full analysis:
+      [validation/records/2026-04-22-first-nav-goal-partial.md](validation/records/2026-04-22-first-nav-goal-partial.md).
+- [ ] **First autonomous navigation goal** — currently PARTIAL (pipeline
+      works, controller doesn't produce motion-threshold commands). Retest
+      after Nav2 tuning above.
 - [ ] **Higher-speed motion test beyond 0.1 m/s** (0.2, 0.3 m/s). Current
       firmware CD parameters are conservative; may need to raise PWM cap
       or rebalance debounce for higher speeds.

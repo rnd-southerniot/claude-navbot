@@ -192,6 +192,52 @@ should be updated to 0.091 m**. This was a backlog item in
 [../project-status.md](../project-status.md); tonight's test is the
 first empirical confirmation of the magnitude.
 
+## First Nav2 navigation goal (2026-04-22) — PARTIAL
+
+First `navigate_to_pose` attempt with full Nav2 stack (SLAM + Nav2 behaviors).
+Full record at
+[../validation/records/2026-04-22-first-nav-goal-partial.md](../validation/records/2026-04-22-first-nav-goal-partial.md).
+
+### What worked end-to-end
+
+- `slam.launch.py` + `navbot_navigation/nav2.launch.py` brings up all nodes
+  cleanly with LiDAR on. Lifecycle auto-activates without the manual
+  workaround needed on 2026-04-21.
+- SLAM publishes `/map` and `map → odom` TF.
+- `navigate_to_pose` action accepts goals.
+- DWB produces velocity commands (observed 81 msgs in 15 s on `/cmd_vel_nav`).
+- velocity_smoother and collision_monitor propagate commands to `/cmd_vel`.
+- base_bridge subscribes to `/cmd_vel` and ACKs commands to firmware.
+- **The entire Nav2 pipeline is demonstrably wired correctly.**
+
+### Why the robot didn't move
+
+Goal: 0.5 m forward from current pose. DWB output:
+
+| Stage | linear.x | angular.z |
+|---|---|---|
+| `/cmd_vel_nav` | 0.0 | -0.111 rad/s |
+| `/cmd_vel_smoothed` | 0.0 | -0.075 rad/s |
+| `/cmd_vel` | 0.0 | -0.075 rad/s |
+
+At 0.075 rad/s angular, per-wheel tangential speed is **6.75 mm/s** — roughly
+1/7 the speed where rotation tests worked (45 mm/s). The PID's output duty
+is below the motor's static-friction threshold; wheels are commanded but
+don't move.
+
+DWB preferring rotation-only with a forward goal is a critic-weight tuning
+issue (RotateToGoal.scale 8.0 vs GoalDist.scale 24.0). The `min_speed_theta`
+floor of 0.10 rad/s is then sabotaged by velocity_smoother's ramp-up from
+zero.
+
+### Action items before next nav-goal attempt
+
+1. Tune DWB (or switch to Regulated Pure Pursuit) so commanded velocity
+   never drops below the motor's minimum-reliable-velocity threshold.
+2. Empirically measure the robot's minimum-reliable-velocity via stepped
+   CMD_VEL tests over serial.
+3. Raise velocity_smoother's deadband to match.
+
 ## Current speed envelope
 
 | Speed | Status |
@@ -201,7 +247,8 @@ first empirical confirmation of the magnitude.
 | > 0.10 m/s | Not tested |
 | 0.5 rad/s rotation | **Validated** (2026-04-22) — CD on, coast 9.58-10.60° at 90°, symmetric both directions |
 | Higher angular velocities | Not tested |
-| Nav2 goals | Unblocked; can proceed |
+| Nav2 `navigate_to_pose` | **Pipeline validated; controller-tuning blocks robot motion.** See nav-goal-partial record. |
+| Sub-motion-threshold velocities | < 45 mm/s wheel tangential = robot won't physically move (static friction). Sets a floor for Nav2 velocity commands. |
 
 ## Related records
 
