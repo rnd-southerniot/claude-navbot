@@ -123,6 +123,75 @@ expectation ~52 mm). Zero FAULT states across 15 trials total.
 - `COUNTER_DRIVE_DEBOUNCE_TICKS = 5` (= 50 ms) — debounce ensures command
   chatter (cmd_vel oscillating around 0) doesn't trigger spurious pulses
 
+## First rotation test — counter-drive in both directions (2026-04-22)
+
+Firmware at commit `a445ffe` (CD-on with STOP-handler fix, see below).
+Full trial data at
+[../validation/records/2026-04-22-rotation-test.md](../validation/records/2026-04-22-rotation-test.md).
+
+### Key result: STOP handler was preventing CD from firing
+
+A bug was discovered this session: `NAVBOT_CMD_STOP` handler called
+`reset_counter_drive_both()`, which force-reset the CD FSM to IDLE on
+every STOP command. Because the Pi bridge sends `STOP` whenever cmd_vel
+drops below its zero-deadband (1e-4), CD was reset before it could
+fire. **Phase 5/6 linear tests passed only because firmware's internal
+`handle_motion_timeout()` occasionally won a race with bridge's STOP**
+— slow Nav2 velocity ramp-downs let firmware timeout fire first, which
+does NOT reset CD. Tonight's rotation test with tight raw `/cmd_vel=0`
+publishes lost the race deterministically.
+
+Fix: remove `reset_counter_drive_both()` from STOP handler (commit
+`a445ffe`). ESTOP/RESET still reset CD explicitly. STOP is now a soft
+stop that yields to CD.
+
+### Rotation results (17 trials total, all with CD active)
+
+| Configuration | Coast mean | Stdev | N |
+|---|---|---|---|
+| 90° CCW | 9.58° | 1.28° | 5 |
+| 90° CW | 10.60° | 1.14° | 5 |
+| 180° CCW | 18.57° | 0.23° | 3 |
+| 180° CW | 18.13° | 0.01° | 3 |
+| 360° (calibration) | 28.08° | — | 1 |
+
+**Direction symmetry at 90°: 1.11× (CW/CCW)** — well within the 2×
+threshold that would flag per-motor asymmetry.
+
+**Zero FAULT states** across all 17 trials. Peak current max 594.7 mA
+(single outlier on one 180° CCW trial), typical ~150 mA.
+
+### Coast-on scaling
+
+Coast scales **approximately linearly with rotation duration**, not
+with rotation magnitude squared. This is the signature of
+**bridge→firmware latency at motion end** (~50-100 ms of continued
+driving before STOP reaches firmware), plus a small fixed contribution
+from the CD pulse. CD itself stops the wheel quickly; the extra coast
+is motion happening while the command chain is still catching up.
+
+| Rotation commanded | Coast | Coast / rotation |
+|---|---|---|
+| 90° | 9-11° | 0.10-0.12 |
+| 180° | 18-19° | 0.10-0.11 |
+| 360° | 28° | 0.08 |
+
+### wheel_separation calibration
+
+360° calibration trial: odom reported 353.2° total rotation. Physical
+measurement: robot stopped ~11° short of start tape (physical ≈ 349°).
+
+Back-solving:
+```
+wheel_sep_true = 0.180 × (353.2 / 349) ≈ 0.182 m
+```
+
+Firmware's `WHEEL_SEPARATION_M = 0.180` is **1.2% low** — acceptable as
+is. **URDF's `wheel_offset_y = 0.08` (separation 0.160) is 12% low and
+should be updated to 0.091 m**. This was a backlog item in
+[../project-status.md](../project-status.md); tonight's test is the
+first empirical confirmation of the magnitude.
+
 ## Current speed envelope
 
 | Speed | Status |
@@ -130,8 +199,9 @@ expectation ~52 mm). Zero FAULT states across 15 trials total.
 | 0.05 m/s straight | **Validated** (Phase 5) — CD on, coast 0.44 ± 0.49 mm |
 | 0.10 m/s straight | **Validated** (Phase 6) — CD on, coast 4.82 ± 0.95 mm |
 | > 0.10 m/s | Not tested |
-| Rotation at any speed | Not yet tested — next logical step |
-| Nav2 goals | Unblocked by CD; can proceed |
+| 0.5 rad/s rotation | **Validated** (2026-04-22) — CD on, coast 9.58-10.60° at 90°, symmetric both directions |
+| Higher angular velocities | Not tested |
+| Nav2 goals | Unblocked; can proceed |
 
 ## Related records
 

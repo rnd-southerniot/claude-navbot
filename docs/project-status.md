@@ -1,13 +1,14 @@
 # Navbot Project Status
 
-**Last updated:** 2026-04-21 (counter-drive floor-validated at 0.05 and 0.1 m/s)
+**Last updated:** 2026-04-22 (first rotation test; STOP/CD bug fix)
 **Branch:** `navbot-experimental`
-**HEAD at update time:** `77375a2` (counter-drive Phase 6 validation record)
+**HEAD at update time:** `a445ffe` (STOP handler yields to CD)
 **Firmware version:** `1.3.0` with counter-drive + TEST_PWM enabled; last-flashed
-  binary on RP2040 is the CD-on build from commit `9b6d46a`.
+  binary on RP2040 is the fix build from commit `a445ffe`.
 **Key milestone commits:**
   `pre-counterdrive-code-v2` → `5185130` (FSM implemented, disabled) → `9b6d46a`
-  (CD enabled) → `a65f008` (floor-validated 0.05 m/s) → `77375a2` (0.1 m/s).
+  (CD enabled) → `a65f008` (floor-validated 0.05 m/s) → `77375a2` (0.1 m/s) →
+  `a445ffe` (STOP-CD bug fix, validated by rotation tests in both directions).
 
 This is the single source of truth for project state. It replaces
 ad-hoc tracking of Phase C state in session transcripts. Update at the
@@ -27,12 +28,24 @@ brake firmware experiment was reverted with full forensics committed
 
 ## Active Work
 
-No active work in-flight. Counter-drive closed successfully — see next
-section. Next session logical target: first rotation test at 0.05 m/s
-(unblocked now that coast-on is sub-millimetre).
+No active work in-flight. Counter-drive closed successfully (both linear
+and rotation). Next session logical targets: URDF `wheel_offset_y`
+update (empirically justified by 2026-04-22 rotation calibration), Pi
+repo sync + rebuild, Pi-side CDRIVE parser.
 
 ## Recent Milestones
 
+- **2026-04-22 First rotation test + STOP-handler bug fix.** 17 trials
+  across 90°/180°/360° in both directions, all with CD active. Coast
+  mean 9.58° at 90° CCW (10.60° CW — 1.11× symmetry), 18.35° at 180°,
+  28° at 360°. Zero FAULT states. Discovered and fixed a CD-activation
+  bug: `NAVBOT_CMD_STOP` was force-resetting CD state, which had been
+  masked in Phase 5/6 because a timing race with firmware's internal
+  timeout path let CD fire anyway. With commit `a445ffe`, STOP now
+  yields to CD cleanly. 360° calibration gives empirical
+  wheel_separation ≈ 0.182 m (vs firmware's 0.180 — 1.2% low, OK) and
+  confirms URDF's 0.160 is wrong by 12%. Full record at
+  [validation/records/2026-04-22-rotation-test.md](validation/records/2026-04-22-rotation-test.md).
 - **2026-04-21 Counter-drive firmware DELIVERED.** Full design, implementation,
   bench validation, and floor validation at both 0.05 m/s and 0.1 m/s.
   Coast reduction **97 %** at 0.05 m/s (13.15 mm → 0.44 mm mean) and
@@ -103,16 +116,34 @@ section. Next session logical target: first rotation test at 0.05 m/s
       abort, HW watchdog, encoder-gated termination, 15 % PWM cap. Floor-
       validated at 0.05 m/s (coast 0.44 mm) and 0.1 m/s (coast 4.82 mm).
 - [x] **Higher-speed motion test at 0.1 m/s** — Phase 6, 5 trials, clean pass
+- [x] **First rotation test** — 2026-04-22. 17 trials at 90°/180°/360°
+      in both directions with CD active. Coast 9.58° at 90° CCW (1.11×
+      symmetry CW/CCW). Zero faults. Also discovered and fixed the
+      STOP→CD bypass bug (commit `a445ffe`).
+- [x] **STOP-handler CD bypass bug fix** — `NAVBOT_CMD_STOP` was calling
+      `reset_counter_drive_both()`, short-circuiting CD activation when
+      the Pi bridge sends STOP on zero cmd_vel. Fix removes the reset
+      from STOP; ESTOP/RESET still reset CD.
 
 ### Open — High Priority
 
-- [ ] **First rotation test at 0.05 m/s** — unblocked now that coast-on
-      is sub-millimetre. Start with in-place 90° rotation, measure odom
-      yaw drift vs physical angle using tape/protractor at two ends of
-      the chassis.
+- [ ] **URDF `wheel_offset_y` 0.08 → 0.091 m.** 2026-04-22 360° rotation
+      calibration showed true wheel_separation ≈ 0.182 m (physical 349°
+      vs odom 353°, vs commanded 360°). Firmware's 0.180 m is 1.2% low —
+      acceptable. URDF's 0.160 m is 12% low — should be corrected. One-
+      line change in
+      [ros2_ws/src/navbot_description/urdf/navbot.urdf.xacro](../ros2_ws/src/navbot_description/urdf/navbot.urdf.xacro).
 - [ ] **Higher-speed motion test beyond 0.1 m/s** (0.2, 0.3 m/s). Current
       firmware CD parameters are conservative; may need to raise PWM cap
       or rebalance debounce for higher speeds.
+- [ ] **Pi repo sync.** Pi is at HEAD `8cf3319` (pre-counter-drive work);
+      firmware is current via direct UF2 flash but Pi-side ROS packages,
+      `launch_nav.sh` set-u fix, and future CDRIVE parser are only on
+      Mac. `git pull && colcon build` on Pi when convenient.
+- [ ] **Higher-precision wheel_separation calibration.** Tonight's "~11°
+      short of start" was eyeball-level. A protractor laid at center of
+      rotation, or a laser pointer with wall marks, would refine the
+      0.182 m estimate to sub-degree precision.
 
 ### Open — Medium Priority
 
@@ -131,8 +162,6 @@ section. Next session logical target: first rotation test at 0.05 m/s
       firmware source still hard-codes `0.033f`. Current ~1.5% odom
       error comes from this mismatch. See
       [hardware/pi-rebuild.md](hardware/pi-rebuild.md) bug #5.
-- [ ] **URDF `wheel_offset_y` 0.08 → 0.09** and firmware
-      `WHEEL_SEPARATION_M` alignment.
 - [ ] **Pi-side CDRIVE telemetry parsing.** `navbot_serial_bridge`
       currently logs `WARN: unknown serial record: CDRIVE …` for every
       CD telemetry line. Add parsing + publish `/base/counter_drive_state`
