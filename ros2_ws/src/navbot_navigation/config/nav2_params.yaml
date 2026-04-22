@@ -46,9 +46,13 @@ controller_server:
       movement_time_allowance: 30.0
     goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
-      # Generous tolerances for first-goal validation. Tighten in a
-      # follow-up session once we know the system navigates at all.
-      xy_goal_tolerance: 0.15
+      # 2026-04-22 (session 8, post-first-success): tightened from
+      # 0.15 m → 0.05 m XY. Generous tolerance was needed during first-
+      # goal bring-up because we couldn't rule out odom drift; now that
+      # firmware wheel_radius matches URDF (0.0325 m) the system can
+      # resolve the last ~10 cm to the goal rather than accepting it
+      # from beyond the xy_goal_tolerance annulus.
+      xy_goal_tolerance: 0.05
       yaw_goal_tolerance: 0.25
       stateful: true
     controller_plugins: ["FollowPath"]

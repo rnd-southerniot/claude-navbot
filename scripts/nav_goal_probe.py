@@ -48,7 +48,8 @@ class Probe(Node):
                 rclpy.spin_once(self, timeout_sec=0.2)
         return None
 
-    def send_goal(self, x_map, y_map, yaw_map, timeout_s=30.0):
+    def send_goal(self, x_map, y_map, yaw_map, timeout_s=30.0,
+                  log_trajectory=False):
         if not self.nav_client.wait_for_server(timeout_sec=5.0):
             print('ERROR: nav action server unavailable')
             return False
@@ -69,13 +70,34 @@ class Probe(Node):
             return False
         print('goal accepted; executing...')
         result_future = gh.get_result_async()
-        rclpy.spin_until_future_complete(self, result_future, timeout_sec=timeout_s)
+        trajectory = []
+        t0 = time.time()
+        last_log = 0.0
+        while not result_future.done() and (time.time() - t0) < timeout_s:
+            rclpy.spin_once(self, timeout_sec=0.1)
+            if log_trajectory and (time.time() - last_log) >= 0.3:
+                try:
+                    tf = self.tf_buf.lookup_transform('map', 'base_footprint',
+                                                     rclpy.time.Time())
+                    q = tf.transform.rotation
+                    yaw = yaw_from_quat(q.x, q.y, q.z, q.w)
+                    trajectory.append((time.time() - t0,
+                                       tf.transform.translation.x,
+                                       tf.transform.translation.y,
+                                       yaw))
+                    last_log = time.time()
+                except Exception:
+                    pass
         if not result_future.done():
             print(f'TIMEOUT after {timeout_s:.0f}s; cancelling')
             cancel = gh.cancel_goal_async()
             rclpy.spin_until_future_complete(self, cancel, timeout_sec=2.0)
             return False
         self.result = result_future.result()
+        if log_trajectory and trajectory:
+            print('trajectory (t, x, y, yaw°):')
+            for t, x, y, yaw in trajectory:
+                print(f'  t={t:5.2f}s  ({x:+.3f}, {y:+.3f})  yaw={math.degrees(yaw):+6.1f}°')
         return True
 
 
@@ -123,7 +145,9 @@ def main():
     y_g = y0 + sy * dx + cy * dy
     yaw_g = yaw0 + dyaw
 
-    ok = node.send_goal(x_g, y_g, yaw_g, timeout_s=timeout_s)
+    log_traj = '--traj' in sys.argv
+    ok = node.send_goal(x_g, y_g, yaw_g, timeout_s=timeout_s,
+                        log_trajectory=log_traj)
 
     tf1 = node.get_pose('map')
     if tf1 is not None:

@@ -1,10 +1,12 @@
 # Navbot Project Status
 
-**Last updated:** 2026-04-22 late evening (first-nav-goal SUCCESS via DWB→RPP switch)
+**Last updated:** 2026-04-22 late evening (wheel_radius fix + straight-line verification)
 **Branch:** `navbot-experimental`
-**HEAD at update time:** `8945069` + session docs + RPP config (about to commit)
-**Firmware version:** `1.3.0` with counter-drive + TEST_PWM enabled; last-flashed
-  binary on RP2040 is the fix build from commit `a445ffe`.
+**HEAD at update time:** `a4b9ebd` + wheel_radius fix + tolerance tighten + session docs (about to commit)
+**Firmware version:** `1.3.0` with counter-drive + TEST_PWM + wheel_radius
+  0.0325 m (matches URDF). Last-flashed binary on RP2040 is the build
+  from this session's wheel_radius commit, flashed via BOOTSEL from
+  Pi-mounted `/dev/sda1`.
 **Key milestone commits:**
   `pre-counterdrive-code-v2` → `5185130` (FSM implemented, disabled) → `9b6d46a`
   (CD enabled) → `a65f008` (floor-validated 0.05 m/s) → `77375a2` (0.1 m/s) →
@@ -29,30 +31,47 @@ brake firmware experiment was reverted with full forensics committed
 
 ## Active Work
 
-No active work in-flight. **First autonomous Nav2 navigation goal
-SUCCEEDED** on 2026-04-22 late evening. Three consecutive goals ran
-successfully end-to-end:
+No active work in-flight. Three Nav2 milestones completed across session 8:
 
-1. 1.0 m straight ahead — travelled 0.846 m (85 % ratio), status=4
-2. 0.3 m + 90° rotate — travelled 0.313 m + 77.5°, status=4
-3. Return to origin (~1.1 m + 84° rotation) — status=4
+1. **First autonomous nav goal SUCCESS** — three goals (1 m straight,
+   0.3 m + 90°, return) all `STATUS_SUCCEEDED`, ~2.2 m total autonomous
+   travel. Enabled by switching FollowPath DWB → RPP after two sessions
+   of unsuccessful DWB critic tuning.
+2. **4-step out-and-back sequence** — validated pure-rotation goals
+   (steps 2 & 4) and round-trip composites. Observed visible curvature
+   on forward legs; traced to firmware/URDF wheel_radius mismatch.
+3. **`wheel_radius` fix + straight-line verification** — firmware
+   0.033 → 0.0325 m (matches URDF). Mean commanded `ang.z` during
+   forward translation dropped from +0.141 rad/s to ±0.014 rad/s
+   (**10× reduction**); travel ratio improved from 70 % to 96–98 %
+   of commanded. `xy_goal_tolerance` tightened 0.15 → 0.05 m.
 
-Total autonomous travel ≈ 2.2 m. RPP's rotate-to-heading behaviour,
-cruise velocity (0.15 m/s), and pure-pursuit curvature command all
-verified against live `/cmd_vel_nav` captures.
-
-Path to this success: after session 7's costmap-inflation hypothesis
-was tested and fell short (DWB still commanded zero forward velocity
-even with a verified 1.36 m clear forward corridor and 0.05 m
-inflation), session 8 flipped the fallback and switched the FollowPath
-controller from DWB to RegulatedPurePursuitController. Three consecutive
-goal attempts succeeded on the first try after the plugin swap.
-
-Full record:
-[validation/records/2026-04-22-first-nav-goal-success.md](validation/records/2026-04-22-first-nav-goal-success.md).
+Full records:
+[first-nav-goal-success](validation/records/2026-04-22-first-nav-goal-success.md),
+[four-step-sequence](validation/records/2026-04-22-nav2-four-step-sequence.md),
+[wheel-radius-fix](validation/records/2026-04-22-wheel-radius-fix.md).
 
 ## Recent Milestones
 
+- **2026-04-22 late evening — wheel_radius calibration fix + straight-
+  line verification.** Firmware `LEFT_WHEEL_RADIUS_M` /
+  `RIGHT_WHEEL_RADIUS_M` 0.033 → 0.0325 m (matches URDF). Rebuilt in
+  [firmware/makerpi_rp2040_base/build/](firmware/makerpi_rp2040_base/build/),
+  flashed via BOOTSEL (Pi-side mount of `/dev/sda1`, copy UF2, unmount —
+  Pico auto-reboots to CDC in 2 s). `xy_goal_tolerance` tightened
+  0.15 → 0.05 m now that odometry is calibrated. Two back-to-back
+  0.5 m forward tests: mean `ang.z` during translation collapsed 10×
+  (+0.141 → ±0.014 rad/s), travel ratio 70 → 96–98 %, XY convergence
+  within 3–4 cm of goal. Full record:
+  [validation/records/2026-04-22-wheel-radius-fix.md](validation/records/2026-04-22-wheel-radius-fix.md).
+- **2026-04-22 late evening — 4-step out-and-back sequence.** Four
+  goals (0.5 m fwd, 180° in place, 0.5 m fwd, 180° in place) all
+  `STATUS_SUCCEEDED`. Pure in-place rotation goals validated: ang.z
+  saturated at `rotate_to_heading_angular_vel: 0.5 rad/s` for 71
+  samples with zero linear velocity. Net drift 12.6 cm / 18.8° over
+  the round-trip, within the 4 × tolerance-stack budget but visible
+  forward-leg curvature motivated the wheel_radius fix.
+  [validation/records/2026-04-22-nav2-four-step-sequence.md](validation/records/2026-04-22-nav2-four-step-sequence.md).
 - **2026-04-22 late evening — FIRST AUTONOMOUS NAV GOAL SUCCESS.**
   Three consecutive `navigate_to_pose` goals all returned
   `STATUS_SUCCEEDED`. Path: applied costmap inflation reductions
@@ -183,6 +202,10 @@ Full record:
       from STOP; ESTOP/RESET still reset CD.
 - [x] **URDF `wheel_offset_y` 0.08 → 0.091 m** (commit `55badc6`).
 - [x] **Pi repo sync** — Pi now at HEAD `55badc6`, 12 packages rebuilt.
+- [x] **Firmware `wheel_radius` 0.033 → 0.0325 m** — matches URDF
+      (commit this session). Verified: mean commanded `ang.z` during
+      forward translation collapsed 10× (+0.141 → ±0.014 rad/s), travel
+      ratio 70 → 96–98 %.
 
 ### Open — High Priority
 
@@ -195,10 +218,6 @@ Full record:
 - [ ] **Higher-speed motion test beyond 0.1 m/s** (0.2, 0.3 m/s). Current
       firmware CD parameters are conservative; may need to raise PWM cap
       or rebalance debounce for higher speeds.
-- [ ] **Pi repo sync.** Pi is at HEAD `8cf3319` (pre-counter-drive work);
-      firmware is current via direct UF2 flash but Pi-side ROS packages,
-      `launch_nav.sh` set-u fix, and future CDRIVE parser are only on
-      Mac. `git pull && colcon build` on Pi when convenient.
 - [ ] **Higher-precision wheel_separation calibration.** Tonight's "~11°
       short of start" was eyeball-level. A protractor laid at center of
       rotation, or a laser pointer with wall marks, would refine the
@@ -216,11 +235,16 @@ Full record:
       to the motor rail, so System 1 (Pi compute rail) currently has
       no current monitoring. A second INA238 (or restoration of this
       one after counter-drive work) is the medium-term fix.
-- [ ] **Firmware `wheel_radius` 0.033f vs URDF 0.0325 alignment** —
-      the URDF was corrected to `0.0325 m` (commit `1952f6a`), but
-      firmware source still hard-codes `0.033f`. Current ~1.5% odom
-      error comes from this mismatch. See
-      [hardware/pi-rebuild.md](hardware/pi-rebuild.md) bug #5.
+- [ ] **RPP terminal rotate-to-goal-heading oscillation.** After the
+      robot reaches `xy_goal_tolerance`, RPP's rotate-to-heading phase
+      commits to a direction, saturates at `rotate_to_heading_angular_vel`,
+      overshoots the target yaw by 50–90°, then damps back and
+      oscillates until `yaw_goal_tolerance` fires. Reproduced in both
+      post-wheel_radius-fix 0.5 m tests this session. Candidate fix:
+      `rotate_to_heading_angular_vel: 0.5 → 0.3`,
+      `max_angular_accel: 1.5 → 1.0`. Test separately, not tacked onto
+      other config changes. Full observation:
+      [validation/records/2026-04-22-wheel-radius-fix.md](validation/records/2026-04-22-wheel-radius-fix.md).
 - [ ] **Pi-side CDRIVE telemetry parsing.** `navbot_serial_bridge`
       currently logs `WARN: unknown serial record: CDRIVE …` for every
       CD telemetry line. Add parsing + publish `/base/counter_drive_state`
