@@ -246,7 +246,16 @@ class L3gd20Lsm303dReader:
             self._write_u8(self.accel_address, LSM303DLHC_ACCEL_REG_CTRL1, 0x57)
             self._write_u8(self.accel_address, LSM303DLHC_ACCEL_REG_CTRL4, 0x00)
             self._write_u8(self.mag_address, LSM303DLHC_MAG_REG_CRA, 0x14)
-            self._write_u8(self.mag_address, LSM303DLHC_MAG_REG_CRB, 0x20)
+            # 2026-04-22 (session 10): CRB 0x20 (±1.3 gauss) → 0x80
+            # (±4.0 gauss). Motor hard-iron bias on Y-axis rests
+            # at +1.4 gauss, already at the ±1.3 gauss ceiling. During
+            # rotation the Y reading saturated at -3.72/+1.86 gauss
+            # (datasheet overflow codes). ±4.0 gauss range now covers
+            # the full bias + Earth field. Config yaml sensitivity
+            # constants (mag_tesla_per_lsb_{xy,z}) MUST match this
+            # gain per datasheet Table 75 (XY=450 LSB/gauss,
+            # Z=400 LSB/gauss at ±4.0 gauss).
+            self._write_u8(self.mag_address, LSM303DLHC_MAG_REG_CRB, 0x80)
             self._write_u8(self.mag_address, LSM303DLHC_MAG_REG_MR, 0x00)
         self._variant = probe.variant
         self._cached_probe = probe
@@ -420,16 +429,22 @@ class L3gd20Lsm303dReaderNode(Node):
             imu_msg.linear_acceleration.z = accel[2]
             self.imu_pub.publish(imu_msg)
 
-            # Publish magnetometer in robot frame.
+            # Publish magnetometer in robot frame with hard-iron
+            # calibration applied. Offsets live in config in sensor
+            # frame; with sensor_orientation=x_forward (identity
+            # remap) the robot-frame mag equals sensor-frame mag, so
+            # subtracting the sensor-frame offsets is correct. If
+            # sensor_orientation is changed, recalibrate the offsets
+            # in the new mount — the values will not transfer.
             mag_msg = MagneticField()
             mag_msg.header.stamp = now
             mag_msg.header.frame_id = self.frame_id
             mag_msg.magnetic_field_covariance[0] = self.magnetic_field_variance
             mag_msg.magnetic_field_covariance[4] = self.magnetic_field_variance
             mag_msg.magnetic_field_covariance[8] = self.magnetic_field_variance
-            mag_msg.magnetic_field.x = mag[0]
-            mag_msg.magnetic_field.y = mag[1]
-            mag_msg.magnetic_field.z = mag[2]
+            mag_msg.magnetic_field.x = (mag[0] - self.mag_offset[0]) * self.mag_scale[0]
+            mag_msg.magnetic_field.y = (mag[1] - self.mag_offset[1]) * self.mag_scale[1]
+            mag_msg.magnetic_field.z = (mag[2] - self.mag_offset[2]) * self.mag_scale[2]
             self.mag_pub.publish(mag_msg)
 
             # Compass heading: apply sensor-frame calibration offsets/scales,

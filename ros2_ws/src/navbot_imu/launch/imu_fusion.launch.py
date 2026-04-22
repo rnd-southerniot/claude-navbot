@@ -10,11 +10,17 @@ Pipeline:
     subscribes: /imu/data_raw, /imu/mag
     publishes:  /imu/data
 
-use_mag is disabled for this session — local magnetic field at axle
-height measured 1.4 gauss (2.3× Earth's max), indicating a strong
-local source (motor magnets). Gyro + accel fusion is sufficient for
-short-term orientation; absolute heading reference via magnetometer
-is deferred pending a hard-iron calibration pass.
+2026-04-22 (session 10): mag fusion explored and REVERTED.
+Hard-iron calibration succeeded (|vec| 1.43 → 0.42 gauss, clean
+sphere, static rotation tracks physical heading cleanly). But
+3-trial spin-and-return benchmark revealed mag fusion DEGRADES
+heading during motion: EKF round-trip drift 9.73° (stdev 10.69°)
+vs raw /odom 0.36°. Motor coils active during spinning distort
+the local magnetic field at the IMU's axle-height mount; the
+complementary filter then applies distorted readings and yaw
+drifts. The ±4.0 gauss gain + offset calibration remain in the
+driver/yaml so re-enabling is a one-line change once the IMU
+can be physically relocated further from the motor stack.
 """
 
 from launch import LaunchDescription

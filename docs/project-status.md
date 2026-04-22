@@ -1,8 +1,8 @@
 # Navbot Project Status
 
-**Last updated:** 2026-04-22 late evening (session 9 — RPP damping + IMU integration end-to-end)
+**Last updated:** 2026-04-22 late evening (session 10 — mag cal + wheel_radius + heading benchmark)
 **Branch:** `navbot-experimental`
-**HEAD at update time:** `69b5e75` (RPP damping) + IMU integration stack (about to commit)
+**HEAD at update time:** `67e9256` + mag cal + wheel_radius fix + benchmark docs (about to commit)
 **Firmware version:** `1.3.0` with counter-drive + TEST_PWM + wheel_radius
   0.0325 m (matches URDF). Last-flashed binary on RP2040 is the build
   from this session's wheel_radius commit, flashed via BOOTSEL from
@@ -31,7 +31,28 @@ brake firmware experiment was reverted with full forensics committed
 
 ## Active Work
 
-No active work in-flight. Session 9 delivered IMU integration end-to-end:
+No active work in-flight. Session 10 followed up on session 9 with
+three calibration tasks: magnetometer hard-iron calibration,
+`wheel_radius` audit, and a 3-trial spin-and-return heading drift
+benchmark. Headline findings:
+
+- **Raw /odom round-trip drift: 0.36° per 360°** — wheel encoders on
+  this chassis are essentially drift-free under balanced motion.
+  Better than most platforms. The prior "~11°" figure was dominated
+  by command-rotation scaling mismatch, not sensor drift.
+- **Mag fusion during motion degraded heading by 10× vs encoder-only**
+  (EKF round-trip drift 9.73° with high per-trial variance). Diagnosed
+  as motor-coil EM interference at the IMU's axle-height mount.
+  Reverted `use_mag: true → false`; kept calibration infrastructure
+  (±4.0 gauss gain, hard-iron offsets) for future re-enable if the
+  IMU can be physically relocated.
+- `wheel_radius` aligned everywhere to 0.0325 m (URDF + firmware +
+  `navbot_base.yaml`).
+
+Full record:
+[validation/records/2026-04-22-mag-calibration-and-heading-benchmark.md](validation/records/2026-04-22-mag-calibration-and-heading-benchmark.md).
+
+Session 9 delivered IMU integration end-to-end:
 gyro + accel driver at 50 Hz, complementary filter producing fused
 orientation, robot_localization EKF fusing wheel odometry (x, y, vx) with
 IMU (yaw, vyaw), Nav2 switched to `/odometry/filtered`. A 180° in-place
@@ -69,6 +90,21 @@ Full records:
 
 ## Recent Milestones
 
+- **2026-04-22 late evening — mag calibration + wheel_radius audit +
+  heading benchmark (session 10).** Magnetometer hard-iron calibration
+  via 60 s rotation sweep succeeded after raising CRB_REG_M gain
+  ±1.3 → ±4.0 gauss (original range was saturating on the Y axis
+  because motor bias pushed baseline to the ceiling). Post-calibration
+  |mag_vec| at rest: 0.42 gauss, right in Earth's band. Static
+  rotation test: yaw tracked ~90° manual rotation cleanly (-5.2° →
+  -107.8°, spread 0.07°). But 3-trial spin-and-return benchmark
+  revealed mag fusion DEGRADES heading during motor activity —
+  EKF round-trip drift 9.73° (stdev 10.69°) vs raw /odom 0.36°
+  (stdev 0.18°). Reverted `use_mag: false`; mag-cal infrastructure
+  preserved for future re-enable. Also aligned `navbot_base.yaml`
+  `wheel_radius: 0.033 → 0.0325` (matches firmware + URDF). Full
+  record:
+  [validation/records/2026-04-22-mag-calibration-and-heading-benchmark.md](validation/records/2026-04-22-mag-calibration-and-heading-benchmark.md).
 - **2026-04-22 late evening — IMU integration end-to-end (session 9).**
   Layers 1/2/3 all shipped in one session: L3G4200D gyro + LSM303DLHC
   accel + mag driver at 50 Hz (`navbot_imu/l3gd20_lsm303d_reader`),
@@ -247,6 +283,14 @@ Full records:
       `rotate_to_heading_angular_vel: 0.5 → 0.3`, `max_angular_accel:
       1.5 → 1.0`. Eliminated 50–90° overshoot + back-and-forth
       oscillation; converges monotonically within yaw_goal_tolerance.
+- [x] **`wheel_radius` aligned everywhere** — `navbot_base.yaml` was
+      still `0.033` while firmware / URDF were `0.0325`. Now `0.0325`
+      across firmware, URDF, and bridge config.
+- [x] **Magnetometer hard-iron calibration done** (session 10). Gain
+      raised to ±4.0 gauss, offsets applied, static rotation tracks
+      cleanly. Note: `use_mag: false` in the complementary filter —
+      mag fusion during motor activity is unreliable on this mount.
+      Infrastructure is one-line re-enable if the IMU relocates.
 
 ### Open — High Priority
 
@@ -276,23 +320,30 @@ Full records:
       to the motor rail, so System 1 (Pi compute rail) currently has
       no current monitoring. A second INA238 (or restoration of this
       one after counter-drive work) is the medium-term fix.
-- [ ] **Magnetometer hard-iron calibration.** Mag magnitude at axle-
-      height mount is 1.43 gauss vs Earth's 0.25–0.65 gauss max — a
-      strong local source, almost certainly the motor gearbox
-      permanent magnets. Current IMU pipeline runs with `use_mag:
-      false`; absolute heading is gyro-integrated (good short-term,
-      drifts over minutes). Fix: figure-8 / 3D-rotation calibration
-      pass, compute hard-iron offsets per axis, apply at driver read
-      or at filter level. Required again whenever the IMU's physical
-      relationship to motors changes.
-      Full observation in
-      [validation/records/2026-04-22-imu-integration.md](validation/records/2026-04-22-imu-integration.md).
-- [ ] **`wheel_radius` in `navbot_base.yaml` still 0.033.** Firmware
-      was fixed to 0.0325 in session 8, but ROS-side config wasn't
-      updated. Audit whether `navbot_serial_bridge` uses this param
-      for any local computation (most odom math runs on firmware
-      side) and align if needed. No symptom observed so far but a
-      latent inconsistency.
+- [ ] **Motor-EM interference makes mag fusion unreliable during
+      motion** (session 10). With the IMU mounted at 35 mm axle
+      height, directly above the motor stack, motor-coil EM fields
+      distort the magnetometer reading during active spin. Mag
+      fusion added 9.7° per-revolution drift (stdev 10.7°) vs 0.4°
+      for encoder-only. Current mitigation: `use_mag: false`.
+      Potential fixes, in order of desirability:
+      (a) Physical relocation — mount IMU 5+ cm away from motors
+          (vertical riser or different chassis position) and re-test.
+      (b) Adaptive fusion — disable mag when angular-velocity > X
+          rad/s (requires filter replacement; stock
+          `imu_complementary_filter` doesn't support this).
+      (c) Reduced mag gain — set `gain_mag: 0.01 → 0.001` so mag
+          only corrects heading slowly during long static periods.
+          Halfway measure; may or may not be enough.
+      Full observation:
+      [validation/records/2026-04-22-mag-calibration-and-heading-benchmark.md](validation/records/2026-04-22-mag-calibration-and-heading-benchmark.md).
+- [ ] **Pi-side repo sync.** Pi is at commit `dc04ba9` (pre-session-8);
+      source tree shows old values for firmware `wheel_radius` etc.
+      No runtime impact — the Pico binary was flashed from Mac via
+      BOOTSEL and is correct; ROS-side configs have been rsync'd
+      per-session. But any future `colcon build` on Pi without a
+      `git pull` would build stale code. `cd ~/projects/claude-
+      navbot && git pull && colcon build` when convenient.
 - [ ] **Pre-EKF base bring-up now broken.** `navbot_base.yaml` has
       `publish_tf: false` as the default because the EKF owns
       `odom → base_footprint`. Running base-only (no `ekf_node`)
