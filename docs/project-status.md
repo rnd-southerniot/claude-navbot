@@ -1,8 +1,8 @@
 # Navbot Project Status
 
-**Last updated:** 2026-04-22 evening (Nav2 tuning + second nav-goal attempt, PARTIAL IMPROVED)
+**Last updated:** 2026-04-22 late evening (first-nav-goal SUCCESS via DWB→RPP switch)
 **Branch:** `navbot-experimental`
-**HEAD at update time:** `dc04ba9` + session docs (about to commit)
+**HEAD at update time:** `8945069` + session docs + RPP config (about to commit)
 **Firmware version:** `1.3.0` with counter-drive + TEST_PWM enabled; last-flashed
   binary on RP2040 is the fix build from commit `a445ffe`.
 **Key milestone commits:**
@@ -29,26 +29,46 @@ brake firmware experiment was reverted with full forensics committed
 
 ## Active Work
 
-No active work in-flight. Second nav-goal attempt completed as **PARTIAL
-IMPROVED**. Over two nav-tuning iterations on 2026-04-22:
+No active work in-flight. **First autonomous Nav2 navigation goal
+SUCCEEDED** on 2026-04-22 late evening. Three consecutive goals ran
+successfully end-to-end:
 
-- Motor envelope characterized (deadband effectively zero; robot moves
-  reliably down to 0.005 m/s linear / 0.05 rad/s angular — 10× lower
-  than previously hypothesized).
-- Real DWB bug found and fixed: `min_speed_xy` + `min_vel_x` combo
-  starved the trajectory sampler (commits `7d1a33e`, `dc04ba9`).
-- Robot executed Nav2-commanded **rotation** for the first time —
-  rotated to face goal heading.
-- Forward translation still blocked, but root cause now clear:
-  `ObstacleFootprint` critic rejects forward trajectories that
-  project into costmap inflation around LiDAR-seen obstacles ~30 cm
-  away. Not a code issue — environment + costmap-param tuning.
+1. 1.0 m straight ahead — travelled 0.846 m (85 % ratio), status=4
+2. 0.3 m + 90° rotate — travelled 0.313 m + 77.5°, status=4
+3. Return to origin (~1.1 m + 84° rotation) — status=4
+
+Total autonomous travel ≈ 2.2 m. RPP's rotate-to-heading behaviour,
+cruise velocity (0.15 m/s), and pure-pursuit curvature command all
+verified against live `/cmd_vel_nav` captures.
+
+Path to this success: after session 7's costmap-inflation hypothesis
+was tested and fell short (DWB still commanded zero forward velocity
+even with a verified 1.36 m clear forward corridor and 0.05 m
+inflation), session 8 flipped the fallback and switched the FollowPath
+controller from DWB to RegulatedPurePursuitController. Three consecutive
+goal attempts succeeded on the first try after the plugin swap.
 
 Full record:
-[validation/records/2026-04-22-nav2-tuning-partial.md](validation/records/2026-04-22-nav2-tuning-partial.md).
+[validation/records/2026-04-22-first-nav-goal-success.md](validation/records/2026-04-22-first-nav-goal-success.md).
 
 ## Recent Milestones
 
+- **2026-04-22 late evening — FIRST AUTONOMOUS NAV GOAL SUCCESS.**
+  Three consecutive `navigate_to_pose` goals all returned
+  `STATUS_SUCCEEDED`. Path: applied costmap inflation reductions
+  (0.15 → 0.05 m in local_costmap, explicit 0.05 m in global_costmap
+  overriding Nav2's 0.55 m default) and DWB `sim_time: 1.5 → 1.0 s`,
+  then re-attempted — DWB still commanded zero forward velocity
+  despite a 1.36 m clear forward corridor, confirming the controller
+  was the blocker, not the costmap. Switched `FollowPath` from
+  `dwb_core::DWBLocalPlanner` to
+  `nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController`.
+  Three goals executed cleanly on the first attempt: 1.0 m straight
+  (0.846 m actual, 85 % ratio matching motor envelope), 0.3 m + 90°
+  composite (0.313 m + 77.5°), and 1.1 m + 84° return. RPP's
+  `rotate_to_heading_angular_vel: 0.5 rad/s` and `desired_linear_vel:
+  0.15 m/s` were both hit exactly by the robot. Full record:
+  [validation/records/2026-04-22-first-nav-goal-success.md](validation/records/2026-04-22-first-nav-goal-success.md).
 - **2026-04-22 evening Nav2 tuning + second nav-goal attempt (PARTIAL IMPROVED).**
   Phase 0 stepped cmd_vel tests showed motor has no real deadband (moves
   down to 0.005 m/s / 0.05 rad/s at 80 % of commanded). First Nav2 tuning
@@ -166,20 +186,12 @@ Full record:
 
 ### Open — High Priority
 
-- [ ] **First autonomous navigation goal — forward translation blocked
-      by costmap.** Status: PARTIAL IMPROVED as of 2026-04-22 evening.
-      Robot rotates to face goal on command but doesn't translate because
-      DWB's `ObstacleFootprint` critic rejects forward trajectories that
-      project into the inflation zone of LiDAR-seen obstacles ~30 cm
-      away. Fixes in order to try next session:
-      (a) Physical: ≥ 1.5 m clearance in direction of goal.
-      (b) Costmap: reduce `local_costmap.inflation_layer.inflation_radius`
-          from 0.15 m to 0.05 m; same for global_costmap.
-      (c) If (a)+(b) don't resolve: switch DWB →
-          `RegulatedPurePursuitController` (simpler scoring for diff-drive,
-          explicit `min_approach_linear_velocity`).
-      Full analysis:
-      [validation/records/2026-04-22-nav2-tuning-partial.md](validation/records/2026-04-22-nav2-tuning-partial.md).
+- [x] **First autonomous navigation goal.** SUCCEEDED 2026-04-22 late
+      evening. Three consecutive goals (1.0 m straight, 0.3 m + 90°,
+      return to origin) all returned STATUS_SUCCEEDED. Costmap inflation
+      reduced to 0.05 m and global_costmap plugins made explicit (Nav2
+      default was 0.55 m inflation); FollowPath switched DWB → RPP. See
+      [validation/records/2026-04-22-first-nav-goal-success.md](validation/records/2026-04-22-first-nav-goal-success.md).
 - [ ] **Higher-speed motion test beyond 0.1 m/s** (0.2, 0.3 m/s). Current
       firmware CD parameters are conservative; may need to raise PWM cap
       or rebalance debounce for higher speeds.
