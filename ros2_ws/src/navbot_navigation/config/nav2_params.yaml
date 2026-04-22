@@ -46,7 +46,9 @@ controller_server:
       movement_time_allowance: 30.0
     goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.10
+      # Generous tolerances for first-goal validation. Tighten in a
+      # follow-up session once we know the system navigates at all.
+      xy_goal_tolerance: 0.15
       yaw_goal_tolerance: 0.25
       stateful: true
     controller_plugins: ["FollowPath"]
@@ -55,13 +57,21 @@ controller_server:
       debug_trajectory_details: false
       publish_evaluation: false
       publish_trajectories: false
-      max_vel_x: 0.20
-      min_vel_x: 0.0
-      max_vel_theta: 1.0
-      min_speed_theta: 0.10
-      acc_lim_x: 0.3
+      # Motor envelope empirically characterized 2026-04-22:
+      #   robot moves down to 0.005 m/s linear, 0.05 rad/s angular.
+      #   Motion ratio ~85% above 0.02 m/s linear / 0.15 rad/s angular.
+      # DWB mins set at 0.02 / 0.15 to keep commands well inside the
+      # reliable-motion envelope. See
+      # docs/validation/records/2026-04-22-first-nav-goal-partial.md
+      # for the pipeline-level diagnosis this tuning follows from.
+      max_vel_x: 0.15
+      min_vel_x: 0.02
+      min_speed_xy: 0.02
+      max_vel_theta: 0.8
+      min_speed_theta: 0.15
+      acc_lim_x: 0.5
       acc_lim_theta: 1.0
-      decel_lim_x: -0.3
+      decel_lim_x: -0.5
       decel_lim_theta: -1.0
       vx_samples: 10
       vy_samples: 1
@@ -140,13 +150,16 @@ velocity_smoother:
     smoothing_frequency: 20.0
     scale_velocities: false
     feedback: "OPEN_LOOP"
-    max_velocity: [0.25, 0.0, 1.2]
-    min_velocity: [-0.25, 0.0, -1.2]
+    max_velocity: [0.15, 0.0, 0.8]
+    min_velocity: [-0.15, 0.0, -0.8]
     max_accel: [0.5, 0.0, 1.5]
     max_decel: [-0.5, 0.0, -1.5]
     odom_topic: /odom
     odom_duration: 0.1
-    deadband_velocity: [0.02, 0.0, 0.02]
+    # Deadband sits BELOW DWB's min commands so the smoother never
+    # zeroes out a valid controller output. Per 2026-04-22 motor
+    # characterization, deadband ~50% of DWB min is safe.
+    deadband_velocity: [0.01, 0.0, 0.075]
     velocity_timeout: 1.0
 
 collision_monitor:
