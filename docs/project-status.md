@@ -1,8 +1,8 @@
 # Navbot Project Status
 
-**Last updated:** 2026-04-22 (URDF calibration + first nav-goal attempt, PARTIAL)
+**Last updated:** 2026-04-22 evening (Nav2 tuning + second nav-goal attempt, PARTIAL IMPROVED)
 **Branch:** `navbot-experimental`
-**HEAD at update time:** `55badc6` + Task 4 docs (about to commit)
+**HEAD at update time:** `dc04ba9` + session docs (about to commit)
 **Firmware version:** `1.3.0` with counter-drive + TEST_PWM enabled; last-flashed
   binary on RP2040 is the fix build from commit `a445ffe`.
 **Key milestone commits:**
@@ -29,17 +29,38 @@ brake firmware experiment was reverted with full forensics committed
 
 ## Active Work
 
-No active work in-flight. First autonomous nav goal attempt completed as
-**PARTIAL**: full Nav2 pipeline is demonstrably wired end-to-end (SLAM,
-DWB, velocity_smoother, collision_monitor, base_bridge, firmware — every
-stage observed publishing/receiving), but DWB is commanding angular
-velocity below the motor's static-friction threshold (~0.075 rad/s
-smoothed → 6.75 mm/s wheel tangential; compare rotation-test working
-speed of 45 mm/s). Full record:
-[validation/records/2026-04-22-first-nav-goal-partial.md](validation/records/2026-04-22-first-nav-goal-partial.md).
+No active work in-flight. Second nav-goal attempt completed as **PARTIAL
+IMPROVED**. Over two nav-tuning iterations on 2026-04-22:
+
+- Motor envelope characterized (deadband effectively zero; robot moves
+  reliably down to 0.005 m/s linear / 0.05 rad/s angular — 10× lower
+  than previously hypothesized).
+- Real DWB bug found and fixed: `min_speed_xy` + `min_vel_x` combo
+  starved the trajectory sampler (commits `7d1a33e`, `dc04ba9`).
+- Robot executed Nav2-commanded **rotation** for the first time —
+  rotated to face goal heading.
+- Forward translation still blocked, but root cause now clear:
+  `ObstacleFootprint` critic rejects forward trajectories that
+  project into costmap inflation around LiDAR-seen obstacles ~30 cm
+  away. Not a code issue — environment + costmap-param tuning.
+
+Full record:
+[validation/records/2026-04-22-nav2-tuning-partial.md](validation/records/2026-04-22-nav2-tuning-partial.md).
 
 ## Recent Milestones
 
+- **2026-04-22 evening Nav2 tuning + second nav-goal attempt (PARTIAL IMPROVED).**
+  Phase 0 stepped cmd_vel tests showed motor has no real deadband (moves
+  down to 0.005 m/s / 0.05 rad/s at 80 % of commanded). First Nav2 tuning
+  (commit `7d1a33e`) with `min_speed_xy: 0.02` + `min_vel_x: 0.02`
+  starved DWB's trajectory sampler ("No valid trajectories out of 0!") —
+  BT fell back to spin recoveries. Fix (commit `dc04ba9`): remove
+  `min_speed_xy`, restore `min_vel_x: 0`. Third attempt: DWB produced
+  trajectories, robot executed commanded rotation toward goal (130° CCW
+  in ~18 s), but forward translation still blocked by `ObstacleFootprint`
+  critic rejecting forward samples that project into costmap inflation
+  around LiDAR-seen obstacles at ~30 cm. Full analysis:
+  [validation/records/2026-04-22-nav2-tuning-partial.md](validation/records/2026-04-22-nav2-tuning-partial.md).
 - **2026-04-22 URDF calibration + first nav-goal attempt (PARTIAL).** Task 1
   applied wheel_offset_y 0.08 → 0.091 m per empirical rotation calibration
   (commit `55badc6`). Task 2 synced Pi repo from `8cf3319` → `55badc6` and
@@ -145,23 +166,20 @@ speed of 45 mm/s). Full record:
 
 ### Open — High Priority
 
-- [ ] **Nav2 controller tuning for our motor envelope.** First nav-goal
-      attempt (2026-04-22) showed DWB commanding ~0.075 rad/s angular
-      (after velocity_smoother) = 6.75 mm/s wheel tangential — below the
-      motor's static-friction threshold. Robot doesn't move. Fixes to
-      evaluate:
-      (a) Raise DWB `min_speed_theta`/`min_vel_x` and velocity_smoother
-          `deadband_velocity` to match a measured minimum-reliable
-          velocity (~45 mm/s per rotation tests).
-      (b) Switch from DWB to `RegulatedPurePursuitController`, which has
-          `min_approach_linear_velocity` explicitly tunable.
-      (c) Empirically measure min-reliable wheel velocity via stepped
-          serial `CMD_VEL` tests.
+- [ ] **First autonomous navigation goal — forward translation blocked
+      by costmap.** Status: PARTIAL IMPROVED as of 2026-04-22 evening.
+      Robot rotates to face goal on command but doesn't translate because
+      DWB's `ObstacleFootprint` critic rejects forward trajectories that
+      project into the inflation zone of LiDAR-seen obstacles ~30 cm
+      away. Fixes in order to try next session:
+      (a) Physical: ≥ 1.5 m clearance in direction of goal.
+      (b) Costmap: reduce `local_costmap.inflation_layer.inflation_radius`
+          from 0.15 m to 0.05 m; same for global_costmap.
+      (c) If (a)+(b) don't resolve: switch DWB →
+          `RegulatedPurePursuitController` (simpler scoring for diff-drive,
+          explicit `min_approach_linear_velocity`).
       Full analysis:
-      [validation/records/2026-04-22-first-nav-goal-partial.md](validation/records/2026-04-22-first-nav-goal-partial.md).
-- [ ] **First autonomous navigation goal** — currently PARTIAL (pipeline
-      works, controller doesn't produce motion-threshold commands). Retest
-      after Nav2 tuning above.
+      [validation/records/2026-04-22-nav2-tuning-partial.md](validation/records/2026-04-22-nav2-tuning-partial.md).
 - [ ] **Higher-speed motion test beyond 0.1 m/s** (0.2, 0.3 m/s). Current
       firmware CD parameters are conservative; may need to raise PWM cap
       or rebalance debounce for higher speeds.
