@@ -57,16 +57,23 @@ controller_server:
       debug_trajectory_details: false
       publish_evaluation: false
       publish_trajectories: false
-      # Motor envelope empirically characterized 2026-04-22:
-      #   robot moves down to 0.005 m/s linear, 0.05 rad/s angular.
-      #   Motion ratio ~85% above 0.02 m/s linear / 0.15 rad/s angular.
-      # DWB mins set at 0.02 / 0.15 to keep commands well inside the
-      # reliable-motion envelope. See
-      # docs/validation/records/2026-04-22-first-nav-goal-partial.md
-      # for the pipeline-level diagnosis this tuning follows from.
+      # Motor envelope empirically characterized 2026-04-22: robot
+      # moves reliably down to 0.005 m/s linear and 0.05 rad/s angular
+      # (~85 % ratio above 0.02 m/s / 0.15 rad/s). So the MOTOR has
+      # effectively no deadband.
+      #
+      # First tuning pass set min_vel_x=0.02 AND min_speed_xy=0.02;
+      # that starved DWB's trajectory sampler because pure-rotation
+      # trajectories (vx=0) were rejected and vx=0 is needed when
+      # the robot is at the goal XY but still rotating. Resulted in
+      # "Could not find a legal trajectory: No valid trajectories
+      # out of 0!" and the BT falling back to spin recoveries.
+      #
+      # Revised: let DWB sample vx=0 (min_vel_x=0.0, no min_speed_xy);
+      # keep min_speed_theta=0.15 so rotation commands land above the
+      # motor's reliable floor when DWB chooses rotation.
       max_vel_x: 0.15
-      min_vel_x: 0.02
-      min_speed_xy: 0.02
+      min_vel_x: 0.0
       max_vel_theta: 0.8
       min_speed_theta: 0.15
       acc_lim_x: 0.5
