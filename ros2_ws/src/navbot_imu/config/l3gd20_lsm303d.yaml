@@ -4,8 +4,17 @@ navbot_l3gd20_lsm303d_reader:
     gyro_address: 105
     accel_address: 25
     mag_address: 30
-    poll_hz: 20.0
+    # 2026-04-22 (session 9): bumped 20 → 50 Hz for complementary
+    # filter fusion. Each poll is 3 × I²C transactions (~0.3 ms);
+    # 50 Hz fits comfortably.
+    poll_hz: 50.0
     frame_id: imu_link
+    # 2026-04-22 (session 9): IMU reoriented with sensor-X axis
+    # pointing robot-forward. Previously "y_forward" (chip Y axis
+    # pointed forward). Phase 0 reread confirmed Z still up (+0.89 g).
+    # Forward/left axis must be verified with a physical tilt/rotate
+    # test — if gyro.z polarity is wrong when rotating CCW, swap.
+    sensor_orientation: x_forward
     gyro_rad_per_sec_per_lsb: 0.00015271630954950383
     accel_mps2_per_lsb: 0.00059820565
     mag_tesla_per_lsb_xy: 9.090909090909091e-08

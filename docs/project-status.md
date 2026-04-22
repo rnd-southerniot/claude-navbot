@@ -1,8 +1,8 @@
 # Navbot Project Status
 
-**Last updated:** 2026-04-22 late evening (wheel_radius fix + straight-line verification)
+**Last updated:** 2026-04-22 late evening (session 9 — RPP damping + IMU integration end-to-end)
 **Branch:** `navbot-experimental`
-**HEAD at update time:** `a4b9ebd` + wheel_radius fix + tolerance tighten + session docs (about to commit)
+**HEAD at update time:** `69b5e75` (RPP damping) + IMU integration stack (about to commit)
 **Firmware version:** `1.3.0` with counter-drive + TEST_PWM + wheel_radius
   0.0325 m (matches URDF). Last-flashed binary on RP2040 is the build
   from this session's wheel_radius commit, flashed via BOOTSEL from
@@ -31,7 +31,23 @@ brake firmware experiment was reverted with full forensics committed
 
 ## Active Work
 
-No active work in-flight. Three Nav2 milestones completed across session 8:
+No active work in-flight. Session 9 delivered IMU integration end-to-end:
+gyro + accel driver at 50 Hz, complementary filter producing fused
+orientation, robot_localization EKF fusing wheel odometry (x, y, vx) with
+IMU (yaw, vyaw), Nav2 switched to `/odometry/filtered`. A 180° in-place
+rotation test executed as a clean monotonic sweep with zero oscillation,
+a qualitative step up from the 50–90° overshoot behaviour documented
+pre-IMU. Magnetometer deferred — local field is 1.4 gauss near the axle-
+height mount, well above Earth's 0.65 gauss max, indicating a strong
+hard-iron bias from the motor magnets that blocks compass fusion until
+calibrated. Also shipped: RPP terminal-rotation damping
+(`rotate_to_heading_angular_vel: 0.5 → 0.3`, `max_angular_accel: 1.5 → 1.0`).
+
+Full record:
+[validation/records/2026-04-22-imu-integration.md](validation/records/2026-04-22-imu-integration.md).
+
+Session 8 delivered three Nav2 milestones (first autonomous goal,
+4-step round-trip, wheel_radius fix):
 
 1. **First autonomous nav goal SUCCESS** — three goals (1 m straight,
    0.3 m + 90°, return) all `STATUS_SUCCEEDED`, ~2.2 m total autonomous
@@ -53,6 +69,22 @@ Full records:
 
 ## Recent Milestones
 
+- **2026-04-22 late evening — IMU integration end-to-end (session 9).**
+  Layers 1/2/3 all shipped in one session: L3G4200D gyro + LSM303DLHC
+  accel + mag driver at 50 Hz (`navbot_imu/l3gd20_lsm303d_reader`),
+  `imu_complementary_filter` producing `/imu/data` orientation at 50 Hz
+  with `use_mag: false`, `robot_localization` EKF publishing
+  `/odometry/filtered` at 30 Hz fusing wheel odom (x, y, vx) with IMU
+  (yaw, vyaw). EKF now owns the `odom → base_footprint` TF
+  (`navbot_serial_bridge.publish_tf: false`). Nav2 switched to
+  `/odometry/filtered`. End-to-end validation: 180° in-place rotation
+  executed as a clean monotonic sweep at -0.287 ± 0.013 rad/s across
+  108 samples with zero oscillation and 12.4° terminal error — vs
+  pre-IMU 50–90° overshoot with wild oscillation. Also shipped RPP
+  terminal-rotation damping (`rotate_to_heading_angular_vel: 0.3`,
+  `max_angular_accel: 1.0`). Magnetometer calibration deferred —
+  local field 1.4 gauss near motor stack. Full record:
+  [validation/records/2026-04-22-imu-integration.md](validation/records/2026-04-22-imu-integration.md).
 - **2026-04-22 late evening — wheel_radius calibration fix + straight-
   line verification.** Firmware `LEFT_WHEEL_RADIUS_M` /
   `RIGHT_WHEEL_RADIUS_M` 0.033 → 0.0325 m (matches URDF). Rebuilt in
@@ -206,6 +238,15 @@ Full records:
       (commit this session). Verified: mean commanded `ang.z` during
       forward translation collapsed 10× (+0.141 → ±0.014 rad/s), travel
       ratio 70 → 96–98 %.
+- [x] **IMU integration end-to-end** — L3G4200D + LSM303DLHC driver
+      at 50 Hz, complementary filter `/imu/data`, robot_localization
+      EKF fusing `/odom` (x, y, vx) with `/imu/data` (yaw, vyaw),
+      Nav2 switched to `/odometry/filtered`. 180° in-place rotation
+      is now a clean monotonic sweep, no oscillation.
+- [x] **RPP terminal rotate-to-heading oscillation damped** —
+      `rotate_to_heading_angular_vel: 0.5 → 0.3`, `max_angular_accel:
+      1.5 → 1.0`. Eliminated 50–90° overshoot + back-and-forth
+      oscillation; converges monotonically within yaw_goal_tolerance.
 
 ### Open — High Priority
 
@@ -235,16 +276,29 @@ Full records:
       to the motor rail, so System 1 (Pi compute rail) currently has
       no current monitoring. A second INA238 (or restoration of this
       one after counter-drive work) is the medium-term fix.
-- [ ] **RPP terminal rotate-to-goal-heading oscillation.** After the
-      robot reaches `xy_goal_tolerance`, RPP's rotate-to-heading phase
-      commits to a direction, saturates at `rotate_to_heading_angular_vel`,
-      overshoots the target yaw by 50–90°, then damps back and
-      oscillates until `yaw_goal_tolerance` fires. Reproduced in both
-      post-wheel_radius-fix 0.5 m tests this session. Candidate fix:
-      `rotate_to_heading_angular_vel: 0.5 → 0.3`,
-      `max_angular_accel: 1.5 → 1.0`. Test separately, not tacked onto
-      other config changes. Full observation:
-      [validation/records/2026-04-22-wheel-radius-fix.md](validation/records/2026-04-22-wheel-radius-fix.md).
+- [ ] **Magnetometer hard-iron calibration.** Mag magnitude at axle-
+      height mount is 1.43 gauss vs Earth's 0.25–0.65 gauss max — a
+      strong local source, almost certainly the motor gearbox
+      permanent magnets. Current IMU pipeline runs with `use_mag:
+      false`; absolute heading is gyro-integrated (good short-term,
+      drifts over minutes). Fix: figure-8 / 3D-rotation calibration
+      pass, compute hard-iron offsets per axis, apply at driver read
+      or at filter level. Required again whenever the IMU's physical
+      relationship to motors changes.
+      Full observation in
+      [validation/records/2026-04-22-imu-integration.md](validation/records/2026-04-22-imu-integration.md).
+- [ ] **`wheel_radius` in `navbot_base.yaml` still 0.033.** Firmware
+      was fixed to 0.0325 in session 8, but ROS-side config wasn't
+      updated. Audit whether `navbot_serial_bridge` uses this param
+      for any local computation (most odom math runs on firmware
+      side) and align if needed. No symptom observed so far but a
+      latent inconsistency.
+- [ ] **Pre-EKF base bring-up now broken.** `navbot_base.yaml` has
+      `publish_tf: false` as the default because the EKF owns
+      `odom → base_footprint`. Running base-only (no `ekf_node`)
+      leaves the TF chain open. Either expose a launch arg to flip
+      the param for bench testing, or document the override as a
+      permanent RUNBOOK step.
 - [ ] **Pi-side CDRIVE telemetry parsing.** `navbot_serial_bridge`
       currently logs `WARN: unknown serial record: CDRIVE …` for every
       CD telemetry line. Add parsing + publish `/base/counter_drive_state`

@@ -12,4 +12,9 @@ navbot_serial_bridge:
     base_frame: base_footprint
     base_link_frame: base_link
     laser_frame: laser_link
-    publish_tf: true
+    # 2026-04-22 (session 9): EKF (navbot_localization/ekf_filter_node)
+    # now owns the odom -> base_footprint TF broadcast. Wheel odom
+    # still publishes the /odom TOPIC (consumed by EKF); just not TF.
+    # If running a slam-only bring-up without the EKF, pass
+    # `publish_tf:=true` via launch arg or this TF chain breaks.
+    publish_tf: false

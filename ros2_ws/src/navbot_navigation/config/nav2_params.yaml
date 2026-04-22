@@ -26,7 +26,9 @@ bt_navigator:
     use_sim_time: false
     global_frame: map
     robot_base_frame: base_footprint
-    odom_topic: /odom
+    # 2026-04-22 (session 9): /odom → /odometry/filtered — consume the
+    # EKF-fused output so Nav2 sees wheel-odom XY with IMU-stable yaw.
+    odom_topic: /odometry/filtered
     # Increase BT action server timeouts for low-powered hardware.
     bt_loop_duration: 10
     default_server_timeout: 20
@@ -195,7 +197,8 @@ velocity_smoother:
     min_velocity: [-0.15, 0.0, -0.8]
     max_accel: [0.5, 0.0, 1.5]
     max_decel: [-0.5, 0.0, -1.5]
-    odom_topic: /odom
+    # 2026-04-22 (session 9): same as bt_navigator — consume EKF output.
+    odom_topic: /odometry/filtered
     odom_duration: 0.1
     # Deadband sits BELOW DWB's min commands so the smoother never
     # zeroes out a valid controller output. Per 2026-04-22 motor

@@ -94,6 +94,7 @@ class L3gd20Lsm303dReader:
         accel_mps2_per_lsb: float,
         mag_tesla_per_lsb_xy: float,
         mag_tesla_per_lsb_z: float,
+        sensor_orientation: str = "y_forward",
     ) -> None:
         self.i2c_bus = i2c_bus
         self.gyro_address = gyro_address
@@ -103,6 +104,11 @@ class L3gd20Lsm303dReader:
         self.accel_mps2_per_lsb = accel_mps2_per_lsb
         self.mag_tesla_per_lsb_xy = mag_tesla_per_lsb_xy
         self.mag_tesla_per_lsb_z = mag_tesla_per_lsb_z
+        if sensor_orientation not in ("x_forward", "y_forward"):
+            raise ValueError(
+                f"sensor_orientation must be 'x_forward' or 'y_forward', got {sensor_orientation!r}"
+            )
+        self.sensor_orientation = sensor_orientation
         self._bus: Optional[SMBus] = None
         self._configured = False
         self._variant = "unknown"
@@ -293,14 +299,24 @@ class L3gd20Lsm303dReader:
             mz * self.mag_tesla_per_lsb_z,
         )
 
-        # Remap from sensor frame (X=right, Y=forward, Z=up) to
-        # robot frame (X=forward, Y=left, Z=up):
-        #   robot_x =  sensor_y
-        #   robot_y = -sensor_x
-        #   robot_z =  sensor_z
-        gyro = (gyro_s[1], -gyro_s[0], gyro_s[2])
-        accel = (accel_s[1], -accel_s[0], accel_s[2])
-        mag = (mag_s[1], -mag_s[0], mag_s[2])
+        # Remap sensor frame to robot frame (X=forward, Y=left, Z=up).
+        # The sensor_orientation param controls how the physical chip
+        # is mounted relative to the robot chassis:
+        #   "y_forward" — original mount: sensor-Y points robot-forward,
+        #                 sensor-X points robot-right. Maps:
+        #                   robot_x =  sensor_y,  robot_y = -sensor_x
+        #   "x_forward" — newer mount (session 9): sensor-X points
+        #                 robot-forward, sensor-Y points robot-left.
+        #                 Identity map: robot axes = sensor axes.
+        # Z-up is assumed; Phase 0 verification confirmed az ≈ +g.
+        if self.sensor_orientation == "y_forward":
+            gyro = (gyro_s[1], -gyro_s[0], gyro_s[2])
+            accel = (accel_s[1], -accel_s[0], accel_s[2])
+            mag = (mag_s[1], -mag_s[0], mag_s[2])
+        else:  # "x_forward"
+            gyro = gyro_s
+            accel = accel_s
+            mag = mag_s
 
         return probe, gyro, accel, mag, mag_s
 
@@ -314,6 +330,7 @@ class L3gd20Lsm303dReaderNode(Node):
         self.declare_parameter("mag_address", 0x1E)
         self.declare_parameter("poll_hz", 20.0)
         self.declare_parameter("frame_id", "imu_link")
+        self.declare_parameter("sensor_orientation", "y_forward")
         self.declare_parameter("gyro_rad_per_sec_per_lsb", 8.75e-3 * math.pi / 180.0)
         self.declare_parameter("accel_mps2_per_lsb", 0.061e-3 * 9.80665)
         self.declare_parameter("mag_tesla_per_lsb_xy", 1.0e-4 / 1100.0)
@@ -341,6 +358,7 @@ class L3gd20Lsm303dReaderNode(Node):
             accel_mps2_per_lsb=float(self.get_parameter("accel_mps2_per_lsb").value),
             mag_tesla_per_lsb_xy=float(self.get_parameter("mag_tesla_per_lsb_xy").value),
             mag_tesla_per_lsb_z=float(self.get_parameter("mag_tesla_per_lsb_z").value),
+            sensor_orientation=str(self.get_parameter("sensor_orientation").value),
         )
         self.frame_id = str(self.get_parameter("frame_id").value)
         self.angular_velocity_variance = float(self.get_parameter("angular_velocity_variance").value)
