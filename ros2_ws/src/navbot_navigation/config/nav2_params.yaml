@@ -74,7 +74,12 @@ controller_server:
       desired_linear_vel: 0.15
       min_approach_linear_velocity: 0.05
       approach_velocity_scaling_dist: 0.4
-      max_angular_accel: 1.5
+      # 2026-04-22 (session 9): 1.5 → 1.0 rad/s². Terminal rotate-to-
+      # goal-heading was overshooting 50–90° before damping back,
+      # then oscillating until yaw_goal_tolerance fired. Lower
+      # acceleration gives the controller room to decelerate before
+      # the goal yaw. Paired with rotate_to_heading_angular_vel 0.5→0.3.
+      max_angular_accel: 1.0
       # Lookahead — 0.3 m baseline; velocity-scaled so at 0.15 m/s the
       # carrot sits ~0.225 m ahead, tightening as the robot slows.
       lookahead_dist: 0.3
@@ -87,7 +92,10 @@ controller_server:
       # translate while steering.
       use_rotate_to_heading: true
       rotate_to_heading_min_angle: 0.785
-      rotate_to_heading_angular_vel: 0.5
+      # 2026-04-22 (session 9): 0.5 → 0.3 rad/s. See max_angular_accel
+      # comment above — lower rotation velocity ceiling reduces
+      # overshoot during terminal rotate-to-goal-heading.
+      rotate_to_heading_angular_vel: 0.3
       # Regulated scaling — slow down in tight curves; cost-regulated
       # scaling is OFF because our costmap is very lightly inflated.
       use_regulated_linear_velocity_scaling: true
