@@ -36,10 +36,12 @@ amcl:
 map_server:
   ros__parameters:
     use_sim_time: false
-    # 2026-04-23 (session 11): absolute path to the persistent map
-    # lives in the Pi user's project tree. Overridable via launch
-    # arg `map` in navbot_bringup/localization.launch.py.
-    yaml_filename: /home/arif/projects/claude-navbot/maps/office_lab.yaml
+    # 2026-04-23 (session 12): pointing at office_lab_v2, built with
+    # a square-path drive covering 9.75 × 7.80 m (195×156 cells @
+    # 0.05 m/pix). Doubled area vs session 11's v1 map. v1 retained
+    # in the repo for reference. Overridable via launch arg `map`
+    # in navbot_bringup/localization.launch.py.
+    yaml_filename: /home/arif/projects/claude-navbot/maps/office_lab_v2.yaml
 
 lifecycle_manager_localization:
   ros__parameters:
