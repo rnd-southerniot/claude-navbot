@@ -276,8 +276,13 @@ and AMCL localization. Explains the difference between SLAM and AMCL.
 - Choose controller: DWB vs RegulatedPurePursuitController (RPP)
 - Tune velocity parameters to match motor envelope
 - Learn: DWB trajectory scoring vs RPP geometric tracking
-- Learn: the Navbot's real finding — DWB rejected forward paths
-  because inflation + sim_time made costmap look blocked
+- Learn: the Navbot's real finding — DWB's weighted-critic scoring
+  (ObstacleFootprint, GoalDist, PathDist, RotateToGoal…) can produce
+  a rotation-only local minimum on diff-drive robots, even with a
+  verifiably clear forward corridor. Reducing inflation_radius and
+  sim_time did not unblock forward motion; switching DWB → RPP did.
+  Critic-balance tuning is fragile per-platform; RPP's geometric
+  pure-pursuit approach maps more naturally to diff-drive.
 
 **Week 9, Session 17 — First Navigation Goal (2 hr lab)**
 - Send navigate_to_pose goal (1 m forward)
@@ -326,11 +331,25 @@ all legs. Return-to-origin XY error < 10 cm.
 - Learn: magnetometer near motors = distorted heading (the Navbot's
   real finding from Session 10)
 
-**Deliverable:** EKF-fused odometry at 30 Hz, heading drift reduced
-vs encoder-only.
+**Deliverable:** EKF publishing `/odometry/filtered` at 30 Hz,
+owning the `odom → base_footprint` TF, Nav2 consuming fused odom.
 
-**Assessment:** 360° rotation test shows EKF heading drift < 5°
-(vs ~11° encoder-only pre-IMU).
+**Assessment:** **Spin-and-return (CCW then CW) drift test.** Robot
+spins +0.5 rad/s × T seconds, then -0.5 rad/s × T seconds; end yaw
+should equal start yaw regardless of rotation amount. On a calibrated
+chassis, wheel-only odometry returns within **0.5° per round-trip**
+(the Navbot's Session 10 measurement: 0.36° ± 0.18°). Gyro+accel EKF
+matches within ~1° on the same test.
+
+**A critical "why" lesson from Session 10:** straight-line 360°-open-
+loop rotation benchmarks are ambiguous because rotation amount varies
+with motor ratio. Spin-and-return isolates drift from command-rotation
+scaling and is the right benchmark. Also, magnetometer fusion near
+motors (`use_mag: true`) made heading *worse* during motion — EKF
+round-trip drift ballooned to 9.7° with high per-trial variance due
+to motor-coil EM distorting the mag field. The Navbot's reference
+config runs `use_mag: false` until the IMU can be relocated further
+from the motor stack.
 
 ---
 
@@ -528,7 +547,7 @@ Engineer passes the program if:
 | 3 | Odom drifts badly | wheel_radius or wheel_separation wrong | Calibration sprint (measure, don't guess) |
 | 4 | SLAM map has artifacts | +Inf LiDAR beams, no range filter | Add laser_filters node |
 | 5 | Nav2 won't move forward | Costmap inflation too aggressive | Reduce inflation_radius to match footprint |
-| 5 | DWB prefers rotation only | DWB trajectory scoring penalizes forward near obstacles | Switch to RPP |
+| 5 | DWB prefers rotation only | DWB critic-balance can produce a rotation-only local minimum on diff-drive, even with a clear forward corridor (costmap tuning alone may not fix) | Switch to RPP |
 | 6 | Magnetometer distorts heading | Motors generate EM field | Set use_mag: false, use gyro+accel only |
 | 7 | Counter-drive not firing | STOP handler resets CD state | Remove CD reset from STOP path |
 | 8 | LoRaWAN join fails | Wrong AppKey or frequency plan | Verify ChirpStack device profile matches |
