@@ -1,8 +1,8 @@
 # Navbot Project Status
 
-**Last updated:** 2026-04-22 late evening (session 10 — mag cal + wheel_radius + heading benchmark)
+**Last updated:** 2026-04-23 (session 11 — map save/load + AMCL + multi-waypoint route)
 **Branch:** `navbot-experimental`
-**HEAD at update time:** `67e9256` + mag cal + wheel_radius fix + benchmark docs (about to commit)
+**HEAD at update time:** `b689e9b` + map persistence + localization launch + waypoint script (about to commit)
 **Firmware version:** `1.3.0` with counter-drive + TEST_PWM + wheel_radius
   0.0325 m (matches URDF). Last-flashed binary on RP2040 is the build
   from this session's wheel_radius commit, flashed via BOOTSEL from
@@ -31,7 +31,34 @@ brake firmware experiment was reverted with full forensics committed
 
 ## Active Work
 
-No active work in-flight. Session 10 followed up on session 9 with
+No active work in-flight. Session 11 shipped map persistence + AMCL
+localization end-to-end:
+
+- **Saved map** `maps/office_lab.{pgm,yaml}` built from a programmatic
+  spin+drive sweep (teleop_twist_keyboard didn't transmit keys over
+  SSH, so switched to a drive script).
+- **`navbot_bringup/localization.launch.py`** brings up the full
+  map-based stack: base + LiDAR + IMU fusion + EKF + map_server +
+  AMCL + Nav2.
+- **`scripts/multi_waypoint.py`** executes a 4-leg route via
+  `nav2_simple_commander.BasicNavigator`.
+- **GATE 1 passed**: 0.3 m goal SUCCEEDED on saved map after
+  /initialpose (quaternion normalization to < 1e-6 tolerance was
+  required — Nav2 AMCL rejects malformed quaternions).
+- **Multi-waypoint result**: 3/4 legs SUCCEEDED, return-to-origin
+  accuracy 1.5 cm XY (excellent), 55.7° yaw (poor). AMCL has
+  difficulty on the sparse-feature map built from a short drive;
+  improving map quality is the unblocker for waypoint repeatability
+  and higher-speed navigation.
+- **Task 3 (higher speed) partial**: 0.20 m/s parameters verified
+  live (lin.x peaked at 0.2000 exactly), but full-length goals
+  TIMEOUT'd due to the same AMCL drift issue. Speed envelope
+  extension deferred.
+
+Full record:
+[validation/records/2026-04-23-map-save-load-and-waypoints.md](validation/records/2026-04-23-map-save-load-and-waypoints.md).
+
+Session 10 followed up on session 9 with
 three calibration tasks: magnetometer hard-iron calibration,
 `wheel_radius` audit, and a 3-trial spin-and-return heading drift
 benchmark. Headline findings:
@@ -90,6 +117,22 @@ Full records:
 
 ## Recent Milestones
 
+- **2026-04-23 — map persistence + AMCL + multi-waypoint route
+  (session 11).** Built 4.7 × 5.65 m reference map via a programmatic
+  spin + drive, saved as `maps/office_lab.{pgm,yaml}`. Wrote
+  `navbot_bringup/localization.launch.py` bringing up the full
+  map-based stack (map_server + AMCL + Nav2). AMCL's initialpose
+  validator rejected our first publishes as "malformed" — cause was
+  quaternion precision slightly off unit length (|q|² = 0.9997 vs
+  tolerance 1e-6); fix is to compute via `sin/cos(yaw/2)` and
+  renormalize. GATE 1 passed with a 0.3 m goal succeeding cleanly.
+  `scripts/multi_waypoint.py` uses `nav2_simple_commander` to run a
+  4-leg square route. First run: 3/4 legs SUCCEEDED, 1.5 cm return-
+  to-origin XY accuracy, 55.7° yaw error — AMCL has difficulty on
+  the sparse-feature map. Higher-speed (0.20 m/s) params verified
+  live via dynamic `ros2 param set` but goals still TIMEOUT on the
+  same AMCL issue; speed envelope extension deferred. Full record:
+  [validation/records/2026-04-23-map-save-load-and-waypoints.md](validation/records/2026-04-23-map-save-load-and-waypoints.md).
 - **2026-04-22 late evening — mag calibration + wheel_radius audit +
   heading benchmark (session 10).** Magnetometer hard-iron calibration
   via 60 s rotation sweep succeeded after raising CRB_REG_M gain
@@ -302,7 +345,24 @@ Full records:
       [validation/records/2026-04-22-first-nav-goal-success.md](validation/records/2026-04-22-first-nav-goal-success.md).
 - [ ] **Higher-speed motion test beyond 0.1 m/s** (0.2, 0.3 m/s). Current
       firmware CD parameters are conservative; may need to raise PWM cap
-      or rebalance debounce for higher speeds.
+      or rebalance debounce for higher speeds. Session 11 attempted
+      0.20 m/s via dynamic param set — the controller reached
+      `lin.x = 0.20` exactly, but full goals TIMEOUT'd because of
+      AMCL drift on a sparse map. Completion gated on richer map.
+- [ ] **Map quality — richer build drive needed.** Session 11's
+      office_lab map was built from one spin-drive-spin-return pass
+      (60 s). AMCL has too few distinctive features for reliable
+      localization during motion — particle filter drifts during
+      rotation, causing xy errors up to 31 cm and yaw errors up to
+      82° at goal-check time. Fix: a longer map-build drive that
+      traces the full perimeter + spins at 3-4 offset positions.
+- [ ] **AMCL yaw drift during motion.** Even with correct initial
+      pose, AMCL yaw estimate drifts during motion, particularly
+      during end-of-leg rotations. Candidate tunings:
+      `max_beams: 60 → 120`, `max_particles: 2000 → 3000`, or
+      revisit `laser_likelihood_max_dist`. Partially coupled to
+      the map-quality item above — both contribute to the
+      ~55° return-to-origin yaw error in session 11.
 - [ ] **Higher-precision wheel_separation calibration.** Tonight's "~11°
       short of start" was eyeball-level. A protractor laid at center of
       rotation, or a laser pointer with wall marks, would refine the
