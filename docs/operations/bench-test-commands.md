@@ -65,6 +65,26 @@ Type the command in Claude Code, e.g.:
   Z-up (accel Z ≈ +10), and that a CCW rotation produces **positive** gyro_z
   (correct right-hand-rule under the `x_forward_flipped` mount).
 
+## Motion commands (closed-loop CMD_VEL — the robot drives)
+
+Unlike the bench tests above (PID-bypassed `TEST_PWM`), these use closed-loop
+`CMD_VEL` and **actually drive the robot across the floor**. Each prompts you to
+confirm clear space (or wheels on blocks) before moving. Speeds are conservative
+and each runs ~2.5 s (turn-reverse ~5.2 s) then auto-`STOP`s.
+
+| Command | Motion | CMD_VEL (lin, ang) | Expected odom |
+|---------|--------|--------------------|---------------|
+| `/navbot:move-forward`    | straight forward ~0.25 m | +0.10, 0 | both wheels **+**, balanced |
+| `/navbot:move-backward`   | straight backward ~0.25 m | −0.10, 0 | both wheels **−**, balanced |
+| `/navbot:soft-turn-left`  | forward + gentle left arc (r≈0.25 m) | +0.10, +0.4 | both **+**, right > left |
+| `/navbot:soft-turn-right` | forward + gentle right arc | +0.10, −0.4 | both **+**, left > right |
+| `/navbot:turn-reverse`    | in-place ~180° spin (CCW) | 0, +0.6 (~5.2 s) | left **−**, right **+** |
+
+Notes: `+ang` = left/CCW (matches the gyro convention). `turn-reverse` is
+open-loop/time-based, so ~180° is approximate — tune `SECS` in the command if it
+lands short/long (rotation rate varies with battery/load). All stream `CMD_VEL`
+at 10 Hz to beat the 0.5 s firmware command timeout and send `STOP` at the end.
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
