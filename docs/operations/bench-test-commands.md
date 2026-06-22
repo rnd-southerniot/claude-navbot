@@ -85,6 +85,11 @@ open-loop/time-based, so ~180° is approximate — tune `SECS` in the command if
 lands short/long (rotation rate varies with battery/load). All stream `CMD_VEL`
 at 10 Hz to beat the 0.5 s firmware command timeout and send `STOP` at the end.
 
+> **Validated on hardware 2026-06-22** — all five pass (straight runs balanced
+> <1%, arcs show correct outer/inner differential, in-place spin symmetric
+> ±5140, no stalls). Full results:
+> [../validation/records/2026-06-22-motion-commands-validation.md](../validation/records/2026-06-22-motion-commands-validation.md).
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
