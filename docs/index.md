@@ -32,6 +32,9 @@ first — pick the entry point that matches what you're doing.
   browser console (being replaced by Foxglove; see note in-doc).
 - [operations/foxglove/README.md](operations/foxglove/README.md) —
   Foxglove bridge setup and default layout.
+- [operations/bench-test-commands.md](operations/bench-test-commands.md) —
+  the `/navbot:*` operator bench-test slash commands (motors, voltages,
+  LiDAR health, gyro) with PASS criteria and troubleshooting.
 
 ## Hardware
 
