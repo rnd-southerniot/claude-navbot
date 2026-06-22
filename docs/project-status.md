@@ -1,12 +1,18 @@
 # Navbot Project Status
 
-**Last updated:** 2026-04-23 (session 11 — map save/load + AMCL + multi-waypoint route)
+**Last updated:** 2026-06-16 (session 13 — home reassembly, power reconfig, full peripheral bring-up, motor wiring fixes, IMU flipped-mount reconfigure)
 **Branch:** `navbot-experimental`
-**HEAD at update time:** `b689e9b` + map persistence + localization launch + waypoint script (about to commit)
-**Firmware version:** `1.3.0` with counter-drive + TEST_PWM + wheel_radius
-  0.0325 m (matches URDF). Last-flashed binary on RP2040 is the build
-  from this session's wheel_radius commit, flashed via BOOTSEL from
-  Pi-mounted `/dev/sda1`.
+**Location:** Moved from the office lab to **home** as of 2026-06-16. The
+  `office_lab` / `office_lab_v2` maps are office-only and **no longer
+  usable** — a fresh home-environment SLAM map is required before any
+  AMCL / Nav2 work resumes.
+**HEAD at update time:** Pi working tree on `navbot-experimental` (HEAD stale
+  at `dc04ba9`, ~14 rsync'd uncommitted files); session-13 IMU driver/config
+  edits applied to the Pi (backups `*.bak-20260616`) and staged on the Mac
+  checkout — not yet committed.
+**Firmware version:** `1.3.0` (unchanged) with counter-drive + TEST_PWM +
+  wheel_radius 0.0325 m. RP2040 confirmed live this session (`ACK PING
+  1.3.0`, `STATE IDLE OK`).
 **Key milestone commits:**
   `pre-counterdrive-code-v2` → `5185130` (FSM implemented, disabled) → `9b6d46a`
   (CD enabled) → `a65f008` (floor-validated 0.05 m/s) → `77375a2` (0.1 m/s) →
@@ -19,19 +25,82 @@ end of each substantive session.
 
 ## Current State
 
-The robot hardware is assembled and validated. First motion test
-(120 mm straight drive at 0.05 m/s) succeeded with <1 mm odom error
-against physical tape — see
-[testing/motion-tests.md](testing/motion-tests.md). INA238 power
-monitoring is live on System 1 (Pi rail). Foxglove bridge dashboard is
-configured with a default layout committed
-([operations/foxglove/README.md](operations/foxglove/README.md)). The
-brake firmware experiment was reverted with full forensics committed
+The robot was **reassembled at home** with a new power architecture and
+brought back to a **fully bench-operational** state on 2026-06-16
+(session 13). All peripherals verified — see
+[validation/records/2026-06-16-home-reassembly-bringup.md](validation/records/2026-06-16-home-reassembly-bringup.md).
+
+**Power architecture (new):** 3S LiPo → 5V converter feeds the **Pi 5 only**
+(`vcgencmd get_throttled` = `0x0`, no undervoltage — this retires the
+undervoltage condition that capped the earlier v1.2.0 validation). The
+INA238 was **moved from the Pi 5V rail to the motor power rail**, which
+also powers the RP2040; it reads ~6.27 V (consistent with 6 V motors —
+confirm nominal). LiDAR is separately powered.
+
+**Drive train:** both motors verified under closed-loop `CMD_VEL` (forward,
+balanced, no stall/runaway) after fixing reassembly wiring faults (left
+direction inversion + dead/loose right M1 lead). Pin map unchanged: LEFT =
+M2 (GP10/11, enc GP2/3, swap_dir false); RIGHT = M1 (GP8/9, enc GP4/5,
+swap_dir true).
+
+**IMU:** reinstalled flipped 180° about the forward axis; rather than
+remount, added a new driver orientation mode `x_forward_flipped` (`(x,−y,−z)`)
+and verified Z-up + correct +CCW yaw on hardware. EKF fuses yaw + yaw-rate
+only, mag fusion stays disabled, so the orientation fix is fully sufficient
+for nav. See [navbot_imu/README](../ros2_ws/src/navbot_imu/README.md).
+
+**Known open items (non-blocking):** GP27 `motor_v` sense divider is
+disconnected (telemetry reads false ~0 V; web console motor voltage wrong);
+INA238 calibration in `navbot_power/config/ina238.yaml` is still set for the
+old 5 V Pi rail and needs recomputing for the motor rail (need motor stall
+current). **Maps:** `office_lab*` are stale (now at home) — capture a fresh
+home map next session.
+
+Earlier baselines still valid: first motion test <1 mm odom error
+([testing/motion-tests.md](testing/motion-tests.md)); Foxglove default
+layout ([operations/foxglove/README.md](operations/foxglove/README.md));
+brake experiment reverted with forensics
 ([notes/brake-attempt-forensic.md](notes/brake-attempt-forensic.md)).
 
 ## Active Work
 
-No active work in-flight. Session 11 shipped map persistence + AMCL
+**No nav work in-flight — this session was hardware bring-up.** Session 13
+(2026-06-16) reassembled the robot at home, reworked power, and brought all
+peripherals back online. Full record:
+[validation/records/2026-06-16-home-reassembly-bringup.md](validation/records/2026-06-16-home-reassembly-bringup.md).
+
+- **Power:** 3S LiPo + 5V converter for the **Pi only** (clean, no
+  undervoltage); INA238 relocated to the **motor rail** (~6.27 V, also
+  powers the RP2040); LiDAR separately powered.
+- **Bring-up:** Pi power PASS; RP2040 fw 1.3.0 (the initial "dead Pico"
+  was a **charge-only USB cable** — swapped for a data cable); encoders
+  PASS; LiDAR `/scan_raw` 9.97 Hz; INA238 alive at 0x40; IMU all three
+  chips on the bus at 50 Hz.
+- **Motor wiring fixes:** left direction inversion corrected; right motor
+  was dead then inverted (loose/reversed **M1** lead) — leads swapped and
+  reseated. Final closed-loop `CMD_VEL` forward: both wheels forward,
+  L +2692 / R +2681 matched, no stall/runaway.
+- **IMU reconfigure:** board remounted flipped 180° about the forward
+  axis; added driver mode `x_forward_flipped` (`(x,−y,−z)`), verified
+  accel Z-up (+10.99) and +CCW yaw (gyro_z +0.64 on a CCW spin). Mag
+  recal deferred (fusion disabled, out of nav path).
+- **Open follow-ups:** reconnect GP27 `motor_v` sense divider; recompute
+  INA238 calibration for the motor rail (needs motor stall current).
+
+**Session 12 (2026-04-23) — recorded retroactively, work DEFERRED to next
+session:** built `maps/office_lab_v2` (a larger 9.75 × 7.80 m square-path
+map, ~2× the session-11 area) to attack the AMCL sparse-map drift, and
+pointed `map_server` at it. Session ended early — **AMCL validation on v2,
+the multi-waypoint rerun, and higher-speed testing were all deferred and
+remain queued.** ⚠️ The 2026-06-16 move to **home** makes the `office_lab*`
+maps obsolete, so that queued nav work now restarts from a **fresh home
+SLAM map** rather than `office_lab_v2`.
+
+---
+
+### Session history (pre-relocation, office lab)
+
+Session 11 shipped map persistence + AMCL
 localization end-to-end:
 
 - **Saved map** `maps/office_lab.{pgm,yaml}` built from a programmatic
@@ -117,6 +186,23 @@ Full records:
 
 ## Recent Milestones
 
+- **2026-06-16 — home reassembly + power reconfig + full bring-up +
+  motor/IMU fixes (session 13).** Relocated to home. New power: 3S+5V
+  for Pi only (throttled=0x0, undervoltage blocker retired); INA238 moved
+  to the motor rail (also powers RP2040, ~6.27 V). Full peripheral
+  bring-up over SSH: found and fixed a charge-only USB cable (RP2040),
+  a left motor direction inversion, and a dead→inverted right M1 motor
+  lead. Closed-loop `CMD_VEL` forward verified (L+2692/R+2681, balanced,
+  no stall). IMU remounted flipped 180° about forward axis → added driver
+  mode `x_forward_flipped` (`(x,−y,−z)`), verified Z-up + +CCW yaw on HW.
+  Open: GP27 motor_v sense wire, INA238 motor-rail recal. Full record:
+  [validation/records/2026-06-16-home-reassembly-bringup.md](validation/records/2026-06-16-home-reassembly-bringup.md).
+- **2026-04-23 — larger map for AMCL drift (session 12, deferred).** Built
+  `maps/office_lab_v2` (9.75 × 7.80 m square-path drive, ~2× session-11
+  area) to fix sparse-map AMCL yaw drift, and set `map_server` default to
+  it. Ended early; AMCL validation + waypoint rerun + higher-speed testing
+  deferred. Superseded by the home move — needs a fresh home map. Commit
+  `dd860c4`.
 - **2026-04-23 — map persistence + AMCL + multi-waypoint route
   (session 11).** Built 4.7 × 5.65 m reference map via a programmatic
   spin + drive, saved as `maps/office_lab.{pgm,yaml}`. Wrote

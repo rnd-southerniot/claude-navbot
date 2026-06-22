@@ -1,7 +1,7 @@
 # navbot_imu
 
-Pi-side reader for the L3GD20 (gyroscope) + LSM303D (accelerometer +
-magnetometer) IMU cluster on Pi I²C bus 1.
+Pi-side reader for the L3G4200D (gyroscope, L3GD20-compatible) +
+LSM303DLHC (accelerometer + magnetometer) IMU cluster on Pi I²C bus 1.
 
 ## Nodes / Executables
 
@@ -27,6 +27,26 @@ Published:
 - Magnetometer: `0x1E`
 
 Verify with `i2cdetect -y 1`.
+
+## Sensor orientation
+
+The `sensor_orientation` parameter remaps the chip frame to the robot
+frame (X = forward, Y = left, Z = up):
+
+- `y_forward` — original mount: `robot = (sensor_y, −sensor_x, sensor_z)`.
+- `x_forward` — session-9 mount: identity (`robot = sensor`).
+- `x_forward_flipped` — **current (2026-06-16)**: board mounted flipped
+  180° about the forward (X) axis, so `robot = (sensor_x, −sensor_y,
+  −sensor_z)`. Restores Z-up (accel_z ≈ +g) and +CCW yaw (gyro_z).
+
+Verify a new orientation on hardware: at rest `accel_z ≈ +9.8` with
+roll/pitch ≈ 0; rotating the robot CCW (left) must give **positive**
+`gyro_z`.
+
+> Magnetometer hard-iron offsets in `config/l3gd20_lsm303d.yaml` are
+> tied to the mount orientation — **recalibrate them after any
+> orientation change** (currently flagged stale; mag fusion is disabled,
+> so this is deferred).
 
 ## Dependencies
 

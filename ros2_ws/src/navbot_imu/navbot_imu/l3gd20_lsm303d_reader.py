@@ -104,9 +104,10 @@ class L3gd20Lsm303dReader:
         self.accel_mps2_per_lsb = accel_mps2_per_lsb
         self.mag_tesla_per_lsb_xy = mag_tesla_per_lsb_xy
         self.mag_tesla_per_lsb_z = mag_tesla_per_lsb_z
-        if sensor_orientation not in ("x_forward", "y_forward"):
+        if sensor_orientation not in ("x_forward", "y_forward", "x_forward_flipped"):
             raise ValueError(
-                f"sensor_orientation must be 'x_forward' or 'y_forward', got {sensor_orientation!r}"
+                "sensor_orientation must be 'x_forward', 'y_forward', or "
+                f"'x_forward_flipped', got {sensor_orientation!r}"
             )
         self.sensor_orientation = sensor_orientation
         self._bus: Optional[SMBus] = None
@@ -314,14 +315,22 @@ class L3gd20Lsm303dReader:
         #   "y_forward" — original mount: sensor-Y points robot-forward,
         #                 sensor-X points robot-right. Maps:
         #                   robot_x =  sensor_y,  robot_y = -sensor_x
-        #   "x_forward" — newer mount (session 9): sensor-X points
-        #                 robot-forward, sensor-Y points robot-left.
-        #                 Identity map: robot axes = sensor axes.
-        # Z-up is assumed; Phase 0 verification confirmed az ≈ +g.
+        #   "x_forward" — session 9 mount: sensor-X points robot-forward,
+        #                 sensor-Y points robot-left. Identity map.
+        #   "x_forward_flipped" — 2026-06-16 remount: board flipped 180°
+        #                 about the forward (X) axis (roll ≈ 180°). Sensor-X
+        #                 still points robot-forward, but Y and Z are
+        #                 inverted. Restores Z-up so accel_z ≈ +g and yaw
+        #                 (gyro_z) reads +CCW.
+        # Z-up is assumed for x_forward/y_forward; Phase 0 confirmed az ≈ +g.
         if self.sensor_orientation == "y_forward":
             gyro = (gyro_s[1], -gyro_s[0], gyro_s[2])
             accel = (accel_s[1], -accel_s[0], accel_s[2])
             mag = (mag_s[1], -mag_s[0], mag_s[2])
+        elif self.sensor_orientation == "x_forward_flipped":
+            gyro = (gyro_s[0], -gyro_s[1], -gyro_s[2])
+            accel = (accel_s[0], -accel_s[1], -accel_s[2])
+            mag = (mag_s[0], -mag_s[1], -mag_s[2])
         else:  # "x_forward"
             gyro = gyro_s
             accel = accel_s

@@ -1,5 +1,17 @@
 # Navbot Power Architecture
 
+> ⚠️ **OUTDATED as of 2026-06-16 (home reassembly, session 13).** The power
+> architecture was reworked: a **3S LiPo + 5V converter now feeds the Pi 5
+> only** (clean, `throttled=0x0`), and the **INA238 was moved to the motor
+> power rail** (which also powers the RP2040, reads ~6.27 V); the LiDAR is
+> separately powered. The three-battery description and diagrams below
+> reflect the **prior office configuration** and need a full revision once
+> the new topology is confirmed and measured. Current authoritative state:
+> [project-status.md](project-status.md) and
+> [validation/records/2026-06-16-home-reassembly-bringup.md](validation/records/2026-06-16-home-reassembly-bringup.md).
+> Also pending: INA238 recalibration for the motor rail (see
+> [hardware/ina238.md](hardware/ina238.md)).
+
 ## Overview
 
 The robot runs on three independent battery systems. Each has its own

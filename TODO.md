@@ -1,9 +1,22 @@
 # TODO.md
 
-## Immediate
-- [ ] Re-validate short motion on a known-good power supply before more SLAM or autonomy work
-- [ ] Re-run the short motion sequence while watching `/power/ina238/status` and capture any power-path correlation under load
-- [ ] Decide whether INA238 scaling needs calibration against a trusted external meter
+> The authoritative state lives in [docs/project-status.md](docs/project-status.md).
+> This list tracks near-term actionable items.
+
+## Immediate (post home-reassembly, 2026-06-16 — session 13)
+- [ ] Reconnect the GP27 `motor_v` sense divider (telemetry reads false ~0 V; web-console motor voltage wrong; telemetry-only, does not block driving)
+- [ ] Recompute INA238 calibration in `ros2_ws/src/navbot_power/config/ina238.yaml` for the **motor rail** (need motor stall current; confirm 6.27 V is nominal) — was set for the old 5 V Pi rail
+- [ ] Capture a **fresh home SLAM map** — `office_lab` / `office_lab_v2` are obsolete now that the robot is at home
+- [ ] (Optional) Commit the session-13 IMU `x_forward_flipped` reconfigure to `navbot-experimental`
+- [ ] **Deferred from session 12 (next session):** AMCL validation + multi-waypoint rerun + higher-speed testing — restart on the new home map, not `office_lab_v2`
+
+### Done 2026-06-16 (session 13)
+- [x] New power: 3S LiPo + 5V converter for Pi only — verified clean (`throttled=0x0`), undervoltage blocker retired
+- [x] Full peripheral bring-up: Pi power, RP2040 (fw 1.3.0), encoders, LiDAR (9.97 Hz), INA238 (0x40), IMU (50 Hz)
+- [x] Fixed reassembly wiring: charge-only USB cable (RP2040), left motor inversion, dead/inverted right M1 lead — closed-loop CMD_VEL forward verified
+- [x] IMU flipped-mount reconfigure: driver `x_forward_flipped` (x,−y,−z), verified Z-up + +CCW yaw on HW
+
+### Historical (pre-relocation, office)
 - [x] Wire the INA238 on Pi `i2c-1`, confirm `0x40`, and validate real voltage/current/power readings
 - [x] Auto-launch `navbot_power/ina238_reader` from `base_lidar.launch.py`
 - [x] Keep `navbot_web` rendering when optional telemetry is unavailable by emitting strict JSON `null` instead of `NaN`
