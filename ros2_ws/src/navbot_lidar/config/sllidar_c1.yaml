@@ -1,9 +1,10 @@
 sllidar_node:
   ros__parameters:
     channel_type: serial
-    # 2026-06-25: LiDAR restored on its original USB adapter (CP2102N) powered
-    # from Pi USB. by-id updated from the old CP2102 (_0001), which is gone.
-    serial_port: /dev/serial/by-id/usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_f05fca3b207fef1185c3221cedd322a4-if00-port0
+    # 2026-06-26: LiDAR moved back to its ORIGINAL CP2102 adapter (_0001) on a
+    # SEPARATE power feed (BLDC inrush was sagging the Pi USB rail). Reverted
+    # from the CP2102N path.
+    serial_port: /dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0
     serial_baudrate: 460800
     frame_id: laser_link
     inverted: false

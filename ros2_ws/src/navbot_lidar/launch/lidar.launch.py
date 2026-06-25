@@ -55,8 +55,8 @@ def generate_launch_description():
         [
             DeclareLaunchArgument(
                 "serial_port",
-                # 2026-06-25: LiDAR's original CP2102N adapter (old CP2102 _0001 is gone).
-                default_value="/dev/serial/by-id/usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_f05fca3b207fef1185c3221cedd322a4-if00-port0",
+                # 2026-06-26: back to the original CP2102 (_0001) adapter on a separate LiDAR power feed.
+                default_value="/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0",
             ),
             DeclareLaunchArgument("serial_baudrate", default_value="460800"),
             DeclareLaunchArgument("frame_id", default_value="laser_link"),
