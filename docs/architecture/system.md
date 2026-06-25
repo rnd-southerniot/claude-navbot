@@ -24,9 +24,12 @@ Maker Pi RP2040
 - Raspberry Pi 5 is the ROS computer.
 - Maker Pi RP2040 is the low-level motor and encoder controller.
 - RP2040 connects to the Pi by USB serial at `115200`.
-- RPLIDAR C1 has its own power feed. USB is the serial/data path, not the LiDAR power source.
-- LiDAR serial adapter path is expected through the stable by-id CP2102 name:
-  - `/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0`
+- RPLIDAR C1: since 2026-06-25 it runs on its original USB adapter (CP2102N)
+  powered from a Pi USB port. This requires `usb_max_current_enable=1` in
+  `/boot/firmware/config.txt` (Pi 5 otherwise caps total USB at 600 mA and the
+  LiDAR brownout drops other USB devices). LiDAR uses 460800 baud.
+- LiDAR serial adapter by-id path:
+  - `/dev/serial/by-id/usb-Silicon_Labs_CP2102N_USB_to_UART_Bridge_Controller_f05fca3b207fef1185c3221cedd322a4-if00-port0`
 - INA238 is the only supported Pi-side power telemetry path in this repo.
 - INA238 is on Pi `i2c-1` at `0x40` and publishes `/power/ina238/status`.
 - The IMU is on Pi `i2c-1` with the detected split-address layout:
