@@ -30,13 +30,15 @@ brought back to a **fully bench-operational** state on 2026-06-16
 (session 13). All peripherals verified — see
 [validation/records/2026-06-16-home-reassembly-bringup.md](validation/records/2026-06-16-home-reassembly-bringup.md).
 
-**Power architecture (2026-06):** 3S LiPo → 5V (Fluree) converter feeds the
-**Pi 5** (`vcgencmd get_throttled` = `0x0`, no undervoltage — retires the
-undervoltage condition that capped the earlier v1.2.0 validation). The
-**LiDAR runs on a Pi USB port** (requires `usb_max_current_enable=1`). The
-**INA238 is being restored to the Pi 5 V compute rail (System 1)** — its
-config/driver were never changed from the Pi-rail calibration (15 mΩ / 3.0 A,
-validated at 5.06 V), so it's plug-and-play once re-cabled.
+**Power architecture (2026-06-26):** 3S LiPo → 5V (Fluree) converter feeds the
+**Pi 5** (`throttled=0x0`). **LiDAR is on its own/separate power feed** (CP2102
+`_0001` data adapter, 460800 baud) — it was briefly on Pi USB but the BLDC
+inrush sagged the Pi rail, so it got a dedicated feed; undervoltage cleared.
+The RP2040's **lidar_v sense divider (GP28) is restored** (reads ~5.06 V); the
+**motor_v divider (GP27) is not installed yet** (reads ~0). **INA238 is on the
+Pi 5 V compute rail (System 1)** — Pi-rail calibration (15 mΩ / 3.0 A)
+unchanged, verified ~4.97 V / ~1.1 A. A separate 3S→buck supplies the ~6.29 V
+motor rail (also powers the RP2040).
 
 **Drive train:** both motors verified under closed-loop `CMD_VEL` (forward,
 balanced, no stall/runaway) after fixing reassembly wiring faults (left
