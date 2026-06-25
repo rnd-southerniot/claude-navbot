@@ -30,12 +30,13 @@ brought back to a **fully bench-operational** state on 2026-06-16
 (session 13). All peripherals verified — see
 [validation/records/2026-06-16-home-reassembly-bringup.md](validation/records/2026-06-16-home-reassembly-bringup.md).
 
-**Power architecture (new):** 3S LiPo → 5V converter feeds the **Pi 5 only**
-(`vcgencmd get_throttled` = `0x0`, no undervoltage — this retires the
+**Power architecture (2026-06):** 3S LiPo → 5V (Fluree) converter feeds the
+**Pi 5** (`vcgencmd get_throttled` = `0x0`, no undervoltage — retires the
 undervoltage condition that capped the earlier v1.2.0 validation). The
-INA238 was **moved from the Pi 5V rail to the motor power rail**, which
-also powers the RP2040; it reads ~6.27 V (consistent with 6 V motors —
-confirm nominal). LiDAR is separately powered.
+**LiDAR runs on a Pi USB port** (requires `usb_max_current_enable=1`). The
+**INA238 is being restored to the Pi 5 V compute rail (System 1)** — its
+config/driver were never changed from the Pi-rail calibration (15 mΩ / 3.0 A,
+validated at 5.06 V), so it's plug-and-play once re-cabled.
 
 **Drive train:** both motors verified under closed-loop `CMD_VEL` (forward,
 balanced, no stall/runaway) after fixing reassembly wiring faults (left
@@ -49,11 +50,10 @@ and verified Z-up + correct +CCW yaw on hardware. EKF fuses yaw + yaw-rate
 only, mag fusion stays disabled, so the orientation fix is fully sufficient
 for nav. See [navbot_imu/README](../ros2_ws/src/navbot_imu/README.md).
 
-**Known open items (non-blocking):** GP27 `motor_v` sense divider is
-disconnected (telemetry reads false ~0 V; web console motor voltage wrong);
-INA238 calibration in `navbot_power/config/ina238.yaml` is still set for the
-old 5 V Pi rail and needs recomputing for the motor rail (need motor stall
-current). **Maps:** `office_lab*` are stale (now at home) — capture a fresh
+**Known open items (non-blocking):** RP2040 `motor_v` / `lidar_v` sense
+dividers are removed (both VBAT telemetry values read ~0 — expected, ignore).
+INA238 stays on the Pi-rail calibration (15 mΩ / 3.0 A) — no change needed for
+System 1. **Maps:** `office_lab*` are stale (now at home) — capture a fresh
 home map next session.
 
 Earlier baselines still valid: first motion test <1 mm odom error

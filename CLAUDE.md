@@ -15,11 +15,11 @@ validation freeze).
   `/dev/serial/by-id/usb-Raspberry_Pi_Pico_E661410403114B35-if00`.
 - **IMU** (Pi I²C-1): L3G4200D gyro `0x69`, LSM303DLHC accel `0x19` / mag
   `0x1E`. Driver mode `x_forward_flipped` (board mounted flipped 180° about
-  X). INA238 power monitor at `0x40` (on the **motor rail** since the
-  2026-06 home reassembly).
-- **Power (home, 2026-06):** 3S LiPo + 5V converter feeds the Pi only;
-  INA238/motor rail is separate (~6–7 V, likely 2S); LiDAR separately
-  powered. Old undervoltage blocker retired.
+  X). INA238 power monitor at `0x40` (Pi 5 V compute rail / System 1;
+  Pi-rail calibration 15 mΩ / 3.0 A).
+- **Power (home, 2026-06):** 3S LiPo + 5V (Fluree) converter feeds the Pi;
+  LiDAR runs on a Pi USB port (`usb_max_current_enable=1`). Old undervoltage
+  blocker retired.
 
 ## Access
 
