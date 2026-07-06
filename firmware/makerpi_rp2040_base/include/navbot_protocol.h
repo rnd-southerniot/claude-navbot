@@ -17,6 +17,14 @@
  *   ESTOP
  *   CMD_VEL <linear_mps> <angular_rps>
  *   WHEEL_VEL <left_mps> <right_mps>
+ *   DIAG
+ *   TEST_PWM <left_duty> <right_duty>
+ *     Bench-only. Applies raw signed PWM to each motor for a fixed
+ *     1000 ms pulse, then coasts. Duty range: -999..+999 (the PWM
+ *     wrap). Blocks in the command handler while petting the HW
+ *     watchdog. Rejected if safety is faulted. Guarded at the command
+ *     handler by TEST_PWM_ENABLED; the parser recognises the command
+ *     regardless so a disabled build emits a clear error.
  *
  * Telemetry from RP2040 to Pi:
  *   ACK PING <firmware_version>
@@ -39,7 +47,7 @@
 
 #define NAVBOT_PROTOCOL_BAUDRATE 115200
 #define NAVBOT_PROTOCOL_MAX_LINE 192
-#define FIRMWARE_VERSION "1.2.0"
+#define FIRMWARE_VERSION "1.3.0"
 
 typedef enum navbot_command_type {
     NAVBOT_CMD_UNKNOWN = 0,
@@ -50,6 +58,7 @@ typedef enum navbot_command_type {
     NAVBOT_CMD_CMD_VEL,
     NAVBOT_CMD_WHEEL_VEL,
     NAVBOT_CMD_DIAG,
+    NAVBOT_CMD_TEST_PWM,
 } navbot_command_type_t;
 
 typedef struct navbot_command {

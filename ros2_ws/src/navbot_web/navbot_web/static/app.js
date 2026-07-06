@@ -34,6 +34,9 @@ const stateEls = {
   imuAccelAddress: document.getElementById("imu-accel-address"),
   imuMagAddress: document.getElementById("imu-mag-address"),
   imuMessage: document.getElementById("imu-message"),
+  batMotorVoltage: document.getElementById("bat-motor-voltage"),
+  batLidarVoltage: document.getElementById("bat-lidar-voltage"),
+  batAge: document.getElementById("bat-age"),
   captureActive: document.getElementById("capture-active"),
   captureFolder: document.getElementById("capture-folder"),
   captureError: document.getElementById("capture-error"),
@@ -147,6 +150,12 @@ async function refreshStatus() {
     stateEls.powerShuntVoltage.textContent = fmtMaybeNumber(state.power.shunt_voltage_v, 4, " V");
     stateEls.powerTemperature.textContent = fmtMaybeNumber(state.power.temperature_c, 2, " C");
     stateEls.powerMessage.textContent = state.power.message || "-";
+
+    if (state.batteries) {
+      stateEls.batMotorVoltage.textContent = fmtMaybeNumber(state.batteries.motor_voltage, 3, " V");
+      stateEls.batLidarVoltage.textContent = fmtMaybeNumber(state.batteries.lidar_voltage, 3, " V");
+      stateEls.batAge.textContent = fmtAge(state.batteries.age_sec);
+    }
 
     stateEls.imuStatus.textContent = state.imu.alive
       ? (state.imu.available ? "Live" : "Error")

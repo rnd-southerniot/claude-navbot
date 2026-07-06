@@ -72,6 +72,7 @@ const char *navbot_command_name(navbot_command_type_t type) {
         case NAVBOT_CMD_CMD_VEL:   return "CMD_VEL";
         case NAVBOT_CMD_WHEEL_VEL: return "WHEEL_VEL";
         case NAVBOT_CMD_DIAG:      return "DIAG";
+        case NAVBOT_CMD_TEST_PWM:  return "TEST_PWM";
         default:                   return "UNKNOWN";
     }
 }
@@ -153,8 +154,17 @@ navbot_parse_result_t navbot_parse_command_line(const char *line, navbot_command
         out_command->type = NAVBOT_CMD_WHEEL_VEL;
         return NAVBOT_PARSE_OK;
     }
+    if (sscanf(parsed, "TEST_PWM %f %f %c", &out_command->value_1, &out_command->value_2, &extra) == 2) {
+        if (!isfinite(out_command->value_1) || !isfinite(out_command->value_2)) {
+            return NAVBOT_PARSE_BAD_ARGUMENTS;
+        }
+        out_command->type = NAVBOT_CMD_TEST_PWM;
+        return NAVBOT_PARSE_OK;
+    }
 
-    if (strncmp(parsed, "CMD_VEL", 7) == 0 || strncmp(parsed, "WHEEL_VEL", 9) == 0) {
+    if (strncmp(parsed, "CMD_VEL", 7) == 0 ||
+        strncmp(parsed, "WHEEL_VEL", 9) == 0 ||
+        strncmp(parsed, "TEST_PWM", 8) == 0) {
         return NAVBOT_PARSE_BAD_ARGUMENTS;
     }
     return NAVBOT_PARSE_UNKNOWN_COMMAND;

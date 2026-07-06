@@ -92,6 +92,8 @@ class SerialBridgeNode(Node):
         self.estop_pub = self.create_publisher(Bool, "/base/estop", 10)
         self.latency_pub = self.create_publisher(Float32, "/base/serial_latency_ms", 10)
         self.health_pub = self.create_publisher(String, "/base/bridge_health", 10)
+        self.motor_voltage_pub = self.create_publisher(Float32, "/base/motor_voltage", 10)
+        self.lidar_voltage_pub = self.create_publisher(Float32, "/base/lidar_voltage", 10)
         self.tf_broadcaster = TransformBroadcaster(self) if self.publish_tf else None
 
         self.create_subscription(Twist, "/cmd_vel", self._cmd_vel_callback, 20)
@@ -292,6 +294,22 @@ class SerialBridgeNode(Node):
             fault = " ".join(tokens[2:])
             self._publish_controller_state(f"{mode} {fault}")
             self.estop_pub.publish(Bool(data=("ESTOP" in mode) or ("ESTOP" in fault)))
+        elif record_type == "VBAT":
+            if len(tokens) != 4:
+                self.get_logger().warn(f"malformed VBAT line: {line}")
+                return
+            try:
+                motor_v = float(tokens[2])
+                lidar_v = float(tokens[3])
+            except ValueError:
+                self.get_logger().warn(f"unable to parse VBAT line: {line}")
+                return
+            msg = Float32()
+            msg.data = float(motor_v)
+            self.motor_voltage_pub.publish(msg)
+            msg = Float32()
+            msg.data = float(lidar_v)
+            self.lidar_voltage_pub.publish(msg)
         elif record_type == "ODOM":
             if len(tokens) != 6:
                 self.get_logger().warn(f"malformed ODOM line: {line}")

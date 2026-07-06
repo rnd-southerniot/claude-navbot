@@ -39,6 +39,7 @@ def _launch_setup(_context):
                         "scan_mode": scan_mode,
                     },
                 ],
+                remappings=[("scan", "/scan_raw")],
             )
         ]
     except PackageNotFoundError:
@@ -54,6 +55,7 @@ def generate_launch_description():
         [
             DeclareLaunchArgument(
                 "serial_port",
+                # 2026-06-26: back to the original CP2102 (_0001) adapter on a separate LiDAR power feed.
                 default_value="/dev/serial/by-id/usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0",
             ),
             DeclareLaunchArgument("serial_baudrate", default_value="460800"),

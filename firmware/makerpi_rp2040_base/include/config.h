@@ -12,9 +12,9 @@
 #define LEFT_CPR_DEFAULT   3943
 #define RIGHT_CPR_DEFAULT  3946
 
-#define LEFT_WHEEL_RADIUS_M   0.033f
-#define RIGHT_WHEEL_RADIUS_M  0.033f
-#define WHEEL_SEPARATION_M    0.160f
+#define LEFT_WHEEL_RADIUS_M   0.0325f
+#define RIGHT_WHEEL_RADIUS_M  0.0325f
+#define WHEEL_SEPARATION_M    0.180f
 
 #define MAX_LINEAR_MPS        0.25f
 #define MAX_ANGULAR_RPS       2.50f
@@ -34,9 +34,9 @@
 
 #define ESTOP_DEBOUNCE_MS       50
 #define COMMAND_TIMEOUT_MS      500
-#define STALL_DUTY_THRESHOLD    100
-#define STALL_DELTA_THRESHOLD   2
-#define STALL_TIMEOUT_MS        500
+#define STALL_DUTY_THRESHOLD    200
+#define STALL_DELTA_THRESHOLD   1
+#define STALL_TIMEOUT_MS        800
 #define STOP_SETPOINT_CPS_DEADBAND 20.0f
 /*
  * Ignore stall accumulation briefly after a meaningful wheel setpoint change.
@@ -44,7 +44,7 @@
  * This avoids false stall trips during ground startup, reversals, and other
  * low-speed transitions where duty rises before encoder motion fully settles.
  */
-#define STALL_STARTUP_GRACE_MS  800
+#define STALL_STARTUP_GRACE_MS  1200
 #define STALL_SETPOINT_CHANGE_CPS 100.0f
 /*
  * Optional continuous-run guard.
@@ -59,5 +59,20 @@
 #define MOTOR_PWM_WRAP          999
 #define MOTOR_MAX_DUTY          999
 #define MOTOR_DUTY_SLEW_PER_TICK 30
+
+/*
+ * ADC voltage monitoring.
+ *
+ * Two external voltage dividers (ratio 1.691) scale the motor and LiDAR
+ * power rails down to the RP2040 ADC range (0–3.3 V).
+ *
+ * real_voltage = (adc_raw / 4095.0) * ADC_VREF * VDIV_RATIO
+ *
+ * Readings are smoothed with a 4-sample moving average to reduce flicker.
+ */
+#define ADC_VREF                3.3f
+#define VDIV_RATIO              1.691f
+#define VBAT_INTERVAL_MS        500
+#define VBAT_SMOOTH_SAMPLES     4
 
 #endif

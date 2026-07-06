@@ -1,0 +1,27 @@
+[Unit]
+# Navbot rosbridge WebSocket for ros-mcp (Claude Code <-> live ROS control).
+# INSTALLED DISABLED by scripts/setup-pi.sh. Enable ONLY on a trusted LAN:
+#     sudo systemctl enable --now navbot-rosbridge
+# SECURITY: rosbridge :9090 is UNAUTHENTICATED ROS control — anyone on the LAN
+# can publish /cmd_vel and drive the robot. See docs/operations/ros-mcp.md.
+Description=Navbot rosbridge WebSocket (ros-mcp live ROS control) [on-demand; disabled by default]
+Documentation=file:///home/arif/projects/claude-navbot/docs/operations/ros-mcp.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=arif
+Group=arif
+# Match the navbot ROS env so rosbridge sees the robot's topics.
+Environment=ROS_DOMAIN_ID=0
+Environment=RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+Environment=ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET
+Environment=CYCLONEDDS_URI=file:///home/arif/.ros/cyclonedds.xml
+# Reuse the on-demand helper (sources ROS + workspace, binds 0.0.0.0:9090).
+ExecStart=/usr/bin/env bash /home/arif/projects/claude-navbot/scripts/launch_rosbridge.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -201,6 +201,28 @@ void wheel_stop(wheel_t *w) {
     w->mode = WMODE_IDLE;
 }
 
+void wheel_apply_test_pwm(wheel_t *w, int16_t duty) {
+    /*
+     * Bench/test hook that bypasses PID and velocity setpoint.
+     *
+     * Force mode to IDLE so wheel_tick() will not touch the PWM channels
+     * on the next control tick. Clear PID and stall bookkeeping so that
+     * when the test pulse finishes and normal drive resumes, there is no
+     * stale state (wound-up integral, stall accumulator) carried over.
+     *
+     * wheel_motor_set() already bounds |duty| to MOTOR_MAX_DUTY and
+     * forces coast on safety fault, so this wrapper does not need to
+     * duplicate those checks.
+     */
+    w->mode = WMODE_IDLE;
+    w->speed_setpoint_cps = 0.0f;
+    w->stall_timer_ms = 0;
+    w->stall_inhibit_ms = 0;
+    pid_reset(&w->speed_pid);
+    wheel_motor_set(w, duty);
+    w->duty = duty;
+}
+
 bool wheel_tick(wheel_t *w, float dt) {
     wheel_encoder_update(w);
 

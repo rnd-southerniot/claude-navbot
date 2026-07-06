@@ -1,3 +1,41 @@
+"""INA238 driver for the Navbot Pi 5 power rail monitor.
+
+Hardware: Adafruit INA238 breakout (STEMMA QT), 15 mOhm shunt on-board.
+I2C address: 0x40 (configurable via A0/A1 jumpers).
+Bus: I2C bus 1 on Raspberry Pi 5.
+
+Datasheet reference: TI SBOSA20C (INA237, February 2021, revised 2024).
+    NOTE: INA237 and INA238 are register-identical. Only gain error and
+    offset specs differ; this driver works for both parts.
+
+Register map highlights (SBOSA20C):
+    0x00  CONFIG        RW  (default 0x0000)
+    0x01  ADC_CONFIG    RW  (default 0xFB68 -- continuous all, 1052 us, avg=1)
+    0x02  SHUNT_CAL     RW  (default 0x1000; CURRENT=0, POWER=0 when 0)
+    0x04  VSHUNT        RO  (5 uV or 1.25 uV / LSB per ADCRANGE, two's compl.)
+    0x05  VBUS          RO  (3.125 mV / LSB, positive only)
+    0x06  DIETEMP       RO  (125 m degC / LSB, two's complement)
+    0x07  CURRENT       RO  (CURRENT_LSB, computed from SHUNT_CAL)
+    0x08  POWER         RO  (24-bit, 0.2 * CURRENT_LSB / LSB)
+    0x0B  DIAG_ALRT     RW  (default 0x0001)
+    0x3E  MANUFACTURER_ID  RO  (0x5449 = 'TI' ASCII)
+    0x3F  DEVICE_ID        RO  (DIEID 0x23 in upper byte; rev in lower byte.
+                                 Our chip reads 0x2380. Register is present
+                                 in SBOSA20C but NOT documented in the older
+                                 SBOSA20A revision -- this gap caused
+                                 confusion during Phase C driver debugging.)
+
+Deployment context: this chip monitors System 1 (Pi compute rail) only.
+See docs/power-architecture.md for full robot power architecture, including
+the important caveat that the Pi 5 GPIO 5V pin is NOT isolated from the
+battery rail when the Pi is on USB-C wall power (0.94 A measured through
+the INA238 shunt with Pi on wall adapter, 2026-04-20).
+
+Driver state as of commit b309625: production. Publish rate: 2 Hz.
+Topics: /power/ina238/{bus_voltage_v, current_a, power_w, temperature_c,
+                        shunt_voltage_v, status}.
+"""
+
 import json
 import math
 from dataclasses import dataclass
@@ -28,6 +66,19 @@ REG_DEVICE_ID = 0x3F
 MANUFACTURER_ID_TI = 0x5449
 DEVICE_ID_INA238 = 0x2380
 
+# ADC_CONFIG value written at init:
+#   MODE   = 0xF (continuous bus+shunt+temp)
+#   VBUSCT = 0x5 (1052 us conversion)
+#   VSHCT  = 0x5 (1052 us conversion)
+#   VTCT   = 0x5 (1052 us conversion)
+#   AVG    = 0x2 (16 samples — ~50 ms per averaged output, ~20 Hz effective)
+# At 2 Hz poll rate the driver reads one of many already-averaged values,
+# giving low-noise telemetry on a switching-regulator rail.
+ADC_CONFIG_VALUE = 0xFB6A
+
+# CONFIG bit 4 = ADCRANGE. 0 = +/-163.84 mV (5 uV/LSB), 1 = +/-40.96 mV (1.25 uV/LSB).
+# ADCRANGE=1 gives 4x better current resolution at the cost of a lower max range.
+
 
 @dataclass
 class Ina238Status:
@@ -48,17 +99,30 @@ class Ina238Status:
 
 
 class Ina238Reader:
-    def __init__(self, i2c_bus: int, address: int, shunt_resistance_ohm: float, max_current_a: float) -> None:
+    def __init__(
+        self,
+        i2c_bus: int,
+        address: int,
+        shunt_resistance_ohm: float,
+        max_current_a: float,
+        adcrange: int = 1,
+    ) -> None:
         self.i2c_bus = i2c_bus
         self.address = address
         self.shunt_resistance_ohm = shunt_resistance_ohm
         self.max_current_a = max_current_a
+        self.adcrange = 1 if adcrange else 0
         self.current_lsb = max_current_a / 32768.0
         self.power_lsb = self.current_lsb * 0.2
+        # SHUNT_CAL gets a 4x multiplier when ADCRANGE=1 per datasheet eq. 2.
+        cal_multiplier = 4 if self.adcrange else 1
         self.shunt_cal = max(
             1,
-            min(0xFFFF, int(round(819_200_000.0 * self.current_lsb * self.shunt_resistance_ohm))),
+            min(0xFFFF, int(round(
+                819_200_000.0 * self.current_lsb * self.shunt_resistance_ohm * cal_multiplier
+            ))),
         )
+        self.config_value = (self.adcrange & 0x1) << 4
         self._bus: Optional[SMBus] = None
 
     def connect(self) -> None:
@@ -66,6 +130,21 @@ class Ina238Reader:
             raise RuntimeError("python3-smbus2 is not installed")
         if self._bus is None:
             self._bus = SMBus(self.i2c_bus)
+            # Refuse to program the chip unless the identity matches INA238.
+            mfg = self._read_u16(REG_MANUFACTURER_ID)
+            dev = self._read_u16(REG_DEVICE_ID)
+            if mfg != MANUFACTURER_ID_TI or (dev & 0xFFF0) != DEVICE_ID_INA238:
+                self._bus.close()
+                self._bus = None
+                raise RuntimeError(
+                    f"INA238 identity mismatch: MFG=0x{mfg:04X} DEV=0x{dev:04X}, "
+                    f"expected MFG=0x{MANUFACTURER_ID_TI:04X} DEV=0x{DEVICE_ID_INA238:04X}"
+                )
+            # CONFIG: set ADCRANGE per driver configuration.
+            self._write_u16(REG_CONFIG, self.config_value)
+            # ADC_CONFIG: continuous mode with 16-sample averaging.
+            self._write_u16(REG_ADC_CONFIG, ADC_CONFIG_VALUE)
+            # SHUNT_CAL: computed current-to-digital calibration.
             self._write_u16(REG_SHUNT_CAL, self.shunt_cal)
 
     def close(self) -> None:
@@ -154,7 +233,8 @@ class Ina238ReaderNode(Node):
         self.declare_parameter("i2c_bus", 1)
         self.declare_parameter("i2c_address", 0x40)
         self.declare_parameter("shunt_resistance_ohm", 0.015)
-        self.declare_parameter("max_current_a", 10.0)
+        self.declare_parameter("max_current_a", 3.0)
+        self.declare_parameter("adcrange", 1)
         self.declare_parameter("poll_hz", 2.0)
 
         self.reader = Ina238Reader(
@@ -162,6 +242,7 @@ class Ina238ReaderNode(Node):
             address=int(self.get_parameter("i2c_address").value),
             shunt_resistance_ohm=float(self.get_parameter("shunt_resistance_ohm").value),
             max_current_a=float(self.get_parameter("max_current_a").value),
+            adcrange=int(self.get_parameter("adcrange").value),
         )
 
         self.bus_voltage_pub = self.create_publisher(Float32, "/power/ina238/bus_voltage_v", 10)
@@ -170,6 +251,22 @@ class Ina238ReaderNode(Node):
         self.temperature_pub = self.create_publisher(Float32, "/power/ina238/temperature_c", 10)
         self.shunt_voltage_pub = self.create_publisher(Float32, "/power/ina238/shunt_voltage_v", 10)
         self.status_pub = self.create_publisher(String, "/power/ina238/status", 10)
+
+        # Perform an initial read so we can emit a startup diagnostic line.
+        # Surfaces wiring or chip-identity problems during bringup rather than
+        # silently publishing zeros. See Phase C investigation 2026-04-20.
+        try:
+            initial = self.reader.read_status()
+            self.get_logger().info(
+                f"INA238 init: MFG=0x{initial.manufacturer_id:04X} "
+                f"DEV=0x{initial.device_id:04X} "
+                f"VBUS={initial.bus_voltage_v:.3f}V "
+                f"SHUNT_CAL={initial.shunt_cal_raw} "
+                f"ADCRANGE={(initial.config_raw >> 4) & 1} "
+                f"available={initial.available}"
+            )
+        except Exception as exc:
+            self.get_logger().warning(f"INA238 initial probe failed: {exc}")
 
         poll_hz = max(0.1, float(self.get_parameter("poll_hz").value))
         self.timer = self.create_timer(1.0 / poll_hz, self._poll)

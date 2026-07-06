@@ -20,7 +20,7 @@ from nav_msgs.msg import Odometry
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, JointState, LaserScan, MagneticField
-from std_msgs.msg import Bool, String
+from std_msgs.msg import Bool, Float32, String
 
 
 def _monotonic_age(stamp: float | None) -> float | None:
@@ -84,6 +84,13 @@ class PowerState:
     power_w: float = math.nan
     temperature_c: float = math.nan
     shunt_voltage_v: float = math.nan
+    stamp: float | None = None
+
+
+@dataclass
+class BatteryVoltages:
+    motor_voltage: float = math.nan
+    lidar_voltage: float = math.nan
     stamp: float | None = None
 
 
@@ -319,6 +326,7 @@ class WebConsoleNode(Node):
         self._scan = ScanState()
         self._joints = JointStateView()
         self._power = PowerState()
+        self._batteries = BatteryVoltages()
         self._imu = ImuState()
         self._controller_state = "UNKNOWN"
         self._controller_stamp: float | None = None
@@ -351,6 +359,8 @@ class WebConsoleNode(Node):
         self.create_subscription(String, controller_state_topic, self._controller_cb, 10)
         self.create_subscription(Bool, estop_topic, self._estop_cb, 10)
         self.create_subscription(String, power_status_topic, self._power_cb, 10)
+        self.create_subscription(Float32, "/base/motor_voltage", self._motor_voltage_cb, 10)
+        self.create_subscription(Float32, "/base/lidar_voltage", self._lidar_voltage_cb, 10)
         self.create_subscription(String, imu_status_topic, self._imu_status_cb, 10)
         self.create_subscription(Imu, imu_raw_topic, self._imu_raw_cb, 20)
         self.create_subscription(MagneticField, imu_mag_topic, self._imu_mag_cb, 20)
@@ -378,6 +388,7 @@ class WebConsoleNode(Node):
             scan_age = _monotonic_age(self._scan.stamp)
             joint_age = _monotonic_age(self._joints.stamp)
             power_age = _monotonic_age(self._power.stamp)
+            battery_age = _monotonic_age(self._batteries.stamp)
             imu_age = _monotonic_age(self._imu.stamp)
             controller_age = _monotonic_age(self._controller_stamp)
             estop_age = _monotonic_age(self._estop_stamp)
@@ -409,6 +420,11 @@ class WebConsoleNode(Node):
                     **asdict(self._power),
                     "age_sec": power_age,
                     "alive": power_age is not None and power_age < self.topic_stale_timeout,
+                },
+                "batteries": {
+                    **asdict(self._batteries),
+                    "age_sec": battery_age,
+                    "alive": battery_age is not None and battery_age < self.topic_stale_timeout,
                 },
                 "imu": {
                     **asdict(self._imu),
@@ -551,6 +567,16 @@ class WebConsoleNode(Node):
                 shunt_voltage_v=_num("shunt_voltage_v"),
                 stamp=time.monotonic(),
             )
+
+    def _motor_voltage_cb(self, msg: Float32) -> None:
+        with self._state_lock:
+            self._batteries.motor_voltage = float(msg.data)
+            self._batteries.stamp = time.monotonic()
+
+    def _lidar_voltage_cb(self, msg: Float32) -> None:
+        with self._state_lock:
+            self._batteries.lidar_voltage = float(msg.data)
+            self._batteries.stamp = time.monotonic()
 
     def _imu_status_cb(self, msg: String) -> None:
         try:

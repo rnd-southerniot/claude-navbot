@@ -28,6 +28,11 @@
 
 #define PIN_ESTOP        20
 
+#define PIN_ADC_MOTOR_V  27
+#define PIN_ADC_LIDAR_V  28
+
+#define PIN_BUZZER       22
+
 #define LEFT_WHEEL_SWAP_DIR   false
 #define RIGHT_WHEEL_SWAP_DIR  true
 

@@ -54,6 +54,21 @@ void wheel_set_speed_cps(wheel_t *w, float cps);
 void wheel_set_speed_mps(wheel_t *w, float mps);
 void wheel_stop(wheel_t *w);
 
+/*
+ * Apply a raw signed PWM duty directly to the H-bridge, bypassing the PID
+ * and any velocity setpoint. Bench/test use only.
+ *
+ * Forces the wheel into WMODE_IDLE so wheel_tick() will not overwrite the
+ * PWM on the next control tick. The caller is responsible for bounded
+ * exposure (e.g. blocking for a known duration, then re-coasting with
+ * duty=0). Respects safety_is_faulted() via wheel_motor_set() -- if a
+ * fault is latched, motors stay coast.
+ *
+ * Intended consumers: empirical armature-resistance measurement and
+ * counter-drive pulse application. Not used on the normal drive path.
+ */
+void wheel_apply_test_pwm(wheel_t *w, int16_t duty);
+
 void wheel_encoder_update(wheel_t *w);
 void wheel_encoder_zero(wheel_t *w);
 
