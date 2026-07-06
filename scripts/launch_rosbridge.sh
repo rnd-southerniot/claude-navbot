@@ -39,8 +39,14 @@ if [[ -n "${pids}" ]]; then
   pids="$(find_pids || true)"; [[ -n "${pids}" ]] && { kill -9 ${pids} 2>/dev/null || true; sleep 1; }
 fi
 
-# Source the SAME ROS env as the navbot stack (DOMAIN 0 + CycloneDDS) so rosbridge
-# sees the robot's topics. Running from a normal Pi login shell inherits these.
+# Match the SAME DDS partition as the navbot stack (DOMAIN 0 + CycloneDDS) so
+# rosbridge sees the robot's topics — set explicitly so it's correct even when
+# invoked non-interactively (systemd, ssh) where ~/.bashrc isn't sourced.
+export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}"
+export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
+if [[ -z "${CYCLONEDDS_URI:-}" && -f "${HOME}/.ros/cyclonedds.xml" ]]; then
+  export CYCLONEDDS_URI="file://${HOME}/.ros/cyclonedds.xml"
+fi
 source /opt/ros/jazzy/setup.bash
 [[ -f "${ROOT_DIR}/ros2_ws/install/setup.bash" ]] && source "${ROOT_DIR}/ros2_ws/install/setup.bash"
 
