@@ -32,11 +32,11 @@ find_pids() {
     ss -ltnp "( sport = :${PORT} )" 2>/dev/null | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u
   fi
 }
-pids="$(find_pids)"
+pids="$(find_pids || true)"
 if [[ -n "${pids}" ]]; then
   echo "Port ${PORT} already in use by PID(s): ${pids} — stopping..."
   kill ${pids} 2>/dev/null || true; sleep 1
-  pids="$(find_pids)"; [[ -n "${pids}" ]] && { kill -9 ${pids} 2>/dev/null || true; sleep 1; }
+  pids="$(find_pids || true)"; [[ -n "${pids}" ]] && { kill -9 ${pids} 2>/dev/null || true; sleep 1; }
 fi
 
 # Source the SAME ROS env as the navbot stack (DOMAIN 0 + CycloneDDS) so rosbridge
