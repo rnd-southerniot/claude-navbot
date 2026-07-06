@@ -35,6 +35,9 @@ first — pick the entry point that matches what you're doing.
 - [operations/bench-test-commands.md](operations/bench-test-commands.md) —
   the `/navbot:*` operator bench-test slash commands (motors, voltages,
   LiDAR health, gyro) with PASS criteria and troubleshooting.
+- [operations/ros-mcp.md](operations/ros-mcp.md) — Claude ↔ **live ROS
+  control** via ros-mcp + rosbridge (drive `/cmd_vel`, read topics, send Nav2
+  goals). Install on Mac + Pi, safety, and how it complements `navbot-knowledge`.
 
 ## Hardware
 

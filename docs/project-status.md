@@ -1,6 +1,18 @@
 # Navbot Project Status
 
-**Last updated:** 2026-06-16 (session 13 — home reassembly, power reconfig, full peripheral bring-up, motor wiring fixes, IMU flipped-mount reconfigure)
+**Last updated:** 2026-07-06 (ros-mcp integration — live ROS control via rosbridge on Mac + Pi; Claude Code already on the Pi)
+
+**2026-07-06 — ros-mcp (live ROS control):** Added `ros-mcp` (`uvx ros-mcp`,
+stdio) so Claude Code can drive the live ROS 2 graph (publish `/cmd_vel`, read
+topics, `navigate_to_pose`) via a **rosbridge WebSocket (:9090)** on the Pi —
+installed on both the Mac (remote) and the Pi (standalone; Claude Code was
+already present there). rosbridge added to `setup-pi.sh` + an on-demand
+`scripts/launch_rosbridge.sh` and an installed-but-disabled systemd unit
+(`scripts/systemd/navbot-rosbridge.service`). ⚠️ rosbridge :9090 is
+**unauthenticated** — on-demand by default. Full guide + safety:
+[operations/ros-mcp.md](operations/ros-mcp.md). Complements the static
+`navbot-knowledge` gateway MCP.
+
 **Branch:** `navbot-experimental`
 **Location:** Moved from the office lab to **home** as of 2026-06-16. The
   `office_lab` / `office_lab_v2` maps are office-only and **no longer

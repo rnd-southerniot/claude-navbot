@@ -48,3 +48,15 @@ Future agents can query it via the gateway meta-tools
 `call_upstream_tool(...)`) without local files. The mirror is refreshed by
 [scripts/sync_knowledge_to_mcp.sh](scripts/sync_knowledge_to_mcp.sh) (run
 automatically by a Claude Code Stop hook).
+
+## Live ROS control (ros-mcp)
+
+Separately from the static knowledge store above, **`ros-mcp`** gives Claude
+Code **live** access to the running ROS 2 graph (list/echo topics, publish
+`/cmd_vel`, call services, send Nav2 goals) via a **rosbridge WebSocket**
+(`:9090`) on the Pi. Registered per-machine with `claude mcp add ros-mcp --
+uvx ros-mcp --transport=stdio` (Mac and Pi). ⚠️ It can **move the robot** and
+the rosbridge port is **unauthenticated** — run rosbridge on-demand
+([scripts/launch_rosbridge.sh](scripts/launch_rosbridge.sh)), wheels free, one
+small command at a time. Full guide + safety:
+[docs/operations/ros-mcp.md](docs/operations/ros-mcp.md).

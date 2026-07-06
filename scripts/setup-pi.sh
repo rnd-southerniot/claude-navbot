@@ -242,6 +242,12 @@ install_ros2_packages() {
         ros-$ROS_DISTRO-joy-linux
         ros-$ROS_DISTRO-foxglove-bridge
 
+        # --- Agent bridge: rosbridge for ros-mcp (Claude <-> live ROS control) ---
+        # ros-mcp reaches the ROS graph via a rosbridge WebSocket (:9090).
+        # SECURITY: rosbridge is UNAUTHENTICATED ROS control on the LAN — run it
+        # on-demand only (scripts/launch_rosbridge.sh); see docs/operations/ros-mcp.md.
+        ros-$ROS_DISTRO-rosbridge-suite
+
         # --- Simulation: Gazebo Harmonic via ros-gz vendor packages ---
         # This pulls in gz-harmonic (sim, tools, rendering, physics) automatically
         # via the gz_*_vendor packages. No separate osrfoundation apt repo needed.
@@ -325,6 +331,37 @@ install_firmware_tools() {
         sudo apt-get install -y "${to_install[@]}"
         log_ok "Firmware tools installed"
     fi
+}
+
+# ---------- Step 4.5: Agent tooling (uv for uvx ros-mcp + rosbridge unit) -----
+
+install_agent_tooling() {
+    step_header "4.5" "Agent tooling — uv (uvx ros-mcp) + rosbridge systemd unit"
+    local repo_root=$HOME/projects/claude-navbot
+
+    # uv: per-user standalone install (no root). Needed to run `uvx ros-mcp`,
+    # the ros-mcp server that lets Claude Code drive the live ROS graph.
+    if command -v uv >/dev/null 2>&1 || [[ -x "$HOME/.local/bin/uv" ]]; then
+        log_ok "uv already installed"
+    else
+        log_info "Installing uv (astral standalone installer)..."
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        log_ok "uv installed to ~/.local/bin/uv"
+    fi
+
+    # rosbridge systemd unit — installed but DISABLED (on-demand is the default).
+    # rosbridge :9090 is UNAUTHENTICATED ROS control; only enable on a trusted LAN.
+    local unit_src="$repo_root/scripts/systemd/navbot-rosbridge.service"
+    if [[ -f "$unit_src" ]]; then
+        sudo cp "$unit_src" /etc/systemd/system/navbot-rosbridge.service
+        sudo systemctl daemon-reload
+        sudo systemctl disable navbot-rosbridge.service 2>/dev/null || true
+        log_ok "navbot-rosbridge.service installed (DISABLED — 'systemctl enable --now navbot-rosbridge' to run at boot)"
+    else
+        log_warn "rosbridge unit not found at $unit_src (skipped)"
+    fi
+
+    log_info "ros-mcp: after 'claude' login, run:  claude mcp add ros-mcp -- uvx ros-mcp --transport=stdio   (docs/operations/ros-mcp.md)"
 }
 
 # ---------- Step 5: User groups (dialout, i2c) -------------------------------
@@ -843,6 +880,7 @@ main() {
     setup_ros_repo
     install_ros2_packages
     install_firmware_tools
+    install_agent_tooling
     setup_user_groups
     setup_udev_rules
     enable_i2c
